@@ -15,15 +15,10 @@
       "branch": "main",
       "work_dir": "/opt/hubfly-tools/example-tool",
       "binary_path": "/opt/hubfly-tools/example-tool/bin/example-tool",
-      "args": [
-        "serve",
-        "--port",
-        "9010"
-      ],
-      "version_command": [
-        "/opt/hubfly-tools/example-tool/bin/example-tool",
-        "version"
-      ],
+      "args": ["serve", "--port", "9010"],
+      "version_command": ["/opt/hubfly-tools/example-tool/bin/example-tool", "version"],
+      "install_command": ["make", "build"],
+      "update_command": ["make", "build"],
       "env_file": "/opt/hubfly-tools/example-tool/.env",
       "config_file": "/opt/hubfly-tools/example-tool/config.json",
       "configs_dir": "/opt/hubfly-tools/example-tool/configs",

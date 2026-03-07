@@ -84,6 +84,12 @@ func validate(cfg model.ManagerConfig) error {
 		if !filepath.IsAbs(t.BinaryPath) {
 			return fmt.Errorf("tool.binary_path must be absolute for %s", t.Name)
 		}
+		if len(t.InstallCommand) > 0 && t.InstallCommand[0] == "" {
+			return fmt.Errorf("tool.install_command executable cannot be empty for %s", t.Name)
+		}
+		if len(t.UpdateCommand) > 0 && t.UpdateCommand[0] == "" {
+			return fmt.Errorf("tool.update_command executable cannot be empty for %s", t.Name)
+		}
 	}
 
 	return nil

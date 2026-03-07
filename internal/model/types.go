@@ -26,6 +26,8 @@ type ToolConfig struct {
 	BinaryPath     string   `json:"binary_path"`
 	Args           []string `json:"args"`
 	VersionCommand []string `json:"version_command"`
+	InstallCommand []string `json:"install_command"`
+	UpdateCommand  []string `json:"update_command"`
 	EnvFile        string   `json:"env_file"`
 	ConfigFile     string   `json:"config_file"`
 	ConfigsDir     string   `json:"configs_dir"`

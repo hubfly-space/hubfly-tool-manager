@@ -20,6 +20,10 @@ type Result struct {
 }
 
 func (r CommandRunner) Run(name string, args ...string) (Result, error) {
+	return r.RunInDir("", name, args...)
+}
+
+func (r CommandRunner) RunInDir(dir, name string, args ...string) (Result, error) {
 	timeout := r.Timeout
 	if timeout <= 0 {
 		timeout = 90 * time.Second
@@ -29,6 +33,9 @@ func (r CommandRunner) Run(name string, args ...string) (Result, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
