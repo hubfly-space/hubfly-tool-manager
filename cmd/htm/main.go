@@ -39,8 +39,12 @@ func main() {
 		err = requireToolAndGet(baseURL, args, "/version")
 	case "history":
 		err = history(baseURL, args)
+	case "backups":
+		err = requireToolAndGet(baseURL, args, "/backups")
 	case "start", "stop", "restart", "provision", "update":
 		err = requireToolAndPost(baseURL, args, "/"+cmd, nil)
+	case "rollback":
+		err = rollback(baseURL, args)
 	case "self-update":
 		err = selfUpdate(baseURL, args)
 	default:
@@ -63,11 +67,13 @@ Usage:
   htm status <tool>
   htm version <tool>
   htm history <tool> [limit]
+  htm backups <tool>
   htm start <tool>
   htm stop <tool>
   htm restart <tool>
   htm provision <tool>
   htm update <tool>
+  htm rollback <tool> [backup_id]
   htm self-update <work_dir> [command...]
 
 Env:
@@ -98,6 +104,17 @@ func selfUpdate(baseURL string, args []string) error {
 		body["update_command"] = args[1:]
 	}
 	return doPost(baseURL, "/self/update", body)
+}
+
+func rollback(baseURL string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("missing tool name")
+	}
+	body := map[string]any{}
+	if len(args) > 1 {
+		body["backup_id"] = args[1]
+	}
+	return doPost(baseURL, "/tools/"+url.PathEscape(args[0])+"/rollback", body)
 }
 
 func requireToolAndGet(baseURL string, args []string, suffix string) error {

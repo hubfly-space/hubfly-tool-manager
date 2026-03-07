@@ -50,3 +50,10 @@ type VersionRecord struct {
 	CommitHash string    `json:"commit_hash,omitempty"`
 	Notes      string    `json:"notes,omitempty"`
 }
+
+type BackupSnapshot struct {
+	ID        string    `json:"id"`
+	ToolName  string    `json:"tool_name"`
+	Path      string    `json:"path"`
+	CreatedAt time.Time `json:"created_at"`
+}

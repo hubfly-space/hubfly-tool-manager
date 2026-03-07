@@ -247,6 +247,84 @@ func (m *Manager) History(name string, limit int) ([]model.VersionRecord, error)
 	return m.store.ListVersions(name, limit)
 }
 
+func (m *Manager) ListBackups(name string) ([]model.BackupSnapshot, error) {
+	if _, err := m.mustTool(name); err != nil {
+		return nil, err
+	}
+	return m.listBackups(name)
+}
+
+func (m *Manager) Rollback(name, backupID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	t, err := m.mustTool(name)
+	if err != nil {
+		return err
+	}
+
+	backups, err := m.listBackups(name)
+	if err != nil {
+		return err
+	}
+	if len(backups) == 0 {
+		return fmt.Errorf("no backups available for %s", name)
+	}
+
+	selected := backups[0]
+	if backupID != "" {
+		found := false
+		for _, b := range backups {
+			if b.ID == backupID {
+				selected = b
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("backup id not found for %s: %s", name, backupID)
+		}
+	}
+
+	safeguardDir, err := m.backupToolFiles(t)
+	if err != nil {
+		return fmt.Errorf("create pre-rollback backup: %w", err)
+	}
+
+	if err := m.pm2.Stop(t.Name); err != nil {
+		return err
+	}
+
+	if err := m.restoreToolFromBackup(t, selected.Path); err != nil {
+		return fmt.Errorf("restore from backup %s: %w", selected.ID, err)
+	}
+
+	if err := m.pm2.StartOrReload(t); err != nil {
+		return err
+	}
+	if err := m.pm2.Save(); err != nil {
+		return err
+	}
+
+	if err := m.trimBackups(t.Name, 3); err != nil {
+		m.logger.Printf("backup trim warning for %s: %v", t.Name, err)
+	}
+
+	version, _ := m.GetToolVersion(t)
+	if version == "" {
+		version = "unknown"
+	}
+	commitHash, _ := m.currentCommit(t.WorkDir)
+	_ = m.store.InsertVersion(model.VersionRecord{
+		ToolName:   t.Name,
+		Version:    version,
+		UpdatedAt:  time.Now().UTC(),
+		CommitHash: commitHash,
+		Notes:      fmt.Sprintf("rollback_from=%s safeguard=%s", selected.Path, safeguardDir),
+	})
+	return nil
+}
+
 func (m *Manager) GetToolVersion(t model.ToolConfig) (string, error) {
 	if len(t.VersionCommand) == 0 {
 		return "unknown", nil
@@ -348,20 +426,35 @@ func (m *Manager) backupToolFiles(t model.ToolConfig) (string, error) {
 }
 
 func (m *Manager) trimBackups(toolName string, keep int) error {
-	root := filepath.Join(m.cfg.Manager.BackupsDir, toolName)
-	entries, err := os.ReadDir(root)
+	if keep <= 0 {
+		keep = 1
+	}
+	list, err := m.listBackups(toolName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return err
 	}
-
-	type entry struct {
-		name string
-		time time.Time
+	if len(list) <= keep {
+		return nil
 	}
-	list := make([]entry, 0, len(entries))
+	for _, b := range list[keep:] {
+		if err := os.RemoveAll(b.Path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Manager) listBackups(toolName string) ([]model.BackupSnapshot, error) {
+	root := filepath.Join(m.cfg.Manager.BackupsDir, toolName)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	list := make([]model.BackupSnapshot, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -370,18 +463,15 @@ func (m *Manager) trimBackups(toolName string, keep int) error {
 		if err != nil {
 			continue
 		}
-		list = append(list, entry{name: e.Name(), time: info.ModTime()})
+		list = append(list, model.BackupSnapshot{
+			ID:        e.Name(),
+			ToolName:  toolName,
+			Path:      filepath.Join(root, e.Name()),
+			CreatedAt: info.ModTime().UTC(),
+		})
 	}
-	if len(list) <= keep {
-		return nil
-	}
-	sort.Slice(list, func(i, j int) bool { return list[i].time.After(list[j].time) })
-	for _, e := range list[keep:] {
-		if err := os.RemoveAll(filepath.Join(root, e.name)); err != nil {
-			return err
-		}
-	}
-	return nil
+	sort.Slice(list, func(i, j int) bool { return list[i].CreatedAt.After(list[j].CreatedAt) })
+	return list, nil
 }
 
 func (m *Manager) currentCommit(workDir string) (string, error) {
@@ -456,6 +546,48 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 
 	if _, err := io.Copy(out, in); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (m *Manager) restoreToolFromBackup(t model.ToolConfig, backupDir string) error {
+	restoreFileIfExists := func(src, dst string) error {
+		if dst == "" {
+			return nil
+		}
+		if _, err := os.Stat(src); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		return copyPath(src, dst)
+	}
+	restoreDirIfExists := func(src, dst string) error {
+		if dst == "" {
+			return nil
+		}
+		if _, err := os.Stat(src); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		_ = os.RemoveAll(dst)
+		return copyPath(src, dst)
+	}
+
+	if err := restoreFileIfExists(filepath.Join(backupDir, "binary"), t.BinaryPath); err != nil {
+		return fmt.Errorf("restore binary: %w", err)
+	}
+	if err := restoreFileIfExists(filepath.Join(backupDir, "config.json"), t.ConfigFile); err != nil {
+		return fmt.Errorf("restore config file: %w", err)
+	}
+	if err := restoreFileIfExists(filepath.Join(backupDir, ".env"), t.EnvFile); err != nil {
+		return fmt.Errorf("restore env file: %w", err)
+	}
+	if err := restoreDirIfExists(filepath.Join(backupDir, "configs"), t.ConfigsDir); err != nil {
+		return fmt.Errorf("restore configs dir: %w", err)
 	}
 	return nil
 }

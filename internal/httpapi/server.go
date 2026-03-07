@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -35,12 +36,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /tools", s.handleListTools)
 	s.mux.HandleFunc("GET /tools/{name}", s.handleToolStatus)
 	s.mux.HandleFunc("GET /tools/{name}/history", s.handleHistory)
+	s.mux.HandleFunc("GET /tools/{name}/backups", s.handleBackups)
 	s.mux.HandleFunc("GET /tools/{name}/version", s.handleVersion)
 	s.mux.HandleFunc("POST /tools/{name}/start", s.handleStart)
 	s.mux.HandleFunc("POST /tools/{name}/stop", s.handleStop)
 	s.mux.HandleFunc("POST /tools/{name}/restart", s.handleRestart)
 	s.mux.HandleFunc("POST /tools/{name}/provision", s.handleProvision)
 	s.mux.HandleFunc("POST /tools/{name}/update", s.handleUpdate)
+	s.mux.HandleFunc("POST /tools/{name}/rollback", s.handleRollback)
 	s.mux.HandleFunc("POST /self/update", s.handleSelfUpdate)
 }
 
@@ -86,6 +89,24 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"history": h})
 }
 
+func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	backups, err := s.manager.ListBackups(name)
+	if err != nil {
+		if strings.Contains(err.Error(), "unknown tool") {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			writeJSON(w, http.StatusOK, map[string]any{"backups": []any{}})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"backups": backups})
+}
+
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	status := s.manager.GetStatus(name)
@@ -114,6 +135,30 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	s.handleAction(w, r, s.manager.Update)
+}
+
+type rollbackRequest struct {
+	BackupID string `json:"backup_id"`
+}
+
+func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	var req rollbackRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if err := s.manager.Rollback(name, req.BackupID); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "backup id not found") || strings.Contains(err.Error(), "no backups available") {
+			status = http.StatusBadRequest
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": name, "backup_id": req.BackupID})
 }
 
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request, fn func(string) error) {
