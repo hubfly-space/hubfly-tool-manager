@@ -1,19 +1,19 @@
 # TODO
 
 ## Done
-- [x] Define tool JSON configuration schema and loader
-- [x] Build SQLite storage for tool version/update history
-- [x] Implement PM2 integration (install checks, start/stop/restart/status)
-- [x] Implement tool updater with backups (keep last 3)
-- [x] Implement self-update workflow (without tracking manager version)
-- [x] Build HTTP API endpoints
-- [x] Build CLI commands mapped to API/actions
-- [x] Handle first-run unmanaged tools gracefully
-- [x] Add defensive validation and panic recovery
-- [x] Write README with setup, curl, and CLI usage
+- [x] PM2 process management (install check, start/stop/restart)
+- [x] HTTP API + CLI for tool lifecycle
+- [x] SQLite version history and update tracking
+- [x] Backup retention (last 3) and rollback
+- [x] Default port set to `10000`
+- [x] Database-driven tool registry (no tool `config.json`)
+- [x] Register endpoint for new tools with URL/checksum/version command/args
+- [x] Per-tool folder convention and binary chmod+x handling
+- [x] Per-tool cleanup endpoint (tool dir + backups + db)
 
 ## Next hardening
-- [ ] Add integration tests with PM2 mocks
 - [ ] Add auth/token protection for HTTP endpoints
-- [ ] Add structured metrics endpoint
-- [ ] Add lock file to prevent multiple manager instances
+- [ ] Add integration tests with mocked PM2 and download server
+- [ ] Add per-tool concurrency locks
+- [ ] Add optional signed binary verification
+- [ ] Add explicit restore endpoint to pick backup + dry-run validation

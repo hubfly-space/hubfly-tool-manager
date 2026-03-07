@@ -2,40 +2,49 @@
 
 A stable PM2-based manager for binary tools.
 
-It provides:
-- HTTP API to provision/start/stop/restart/update tools
-- CLI (`htm`) for the same operations
-- SQLite version history per tool (manual updates only)
-- Backup before each tool update, keeping only the last 3 backups per tool
-- Rollback endpoint/command to restore from retained backups
-- Safe version probing even when a tool has no version command
-- Self-update endpoint/command for the manager (not stored in tool version history)
-- First-run handling when tools are not yet registered in PM2
+Now fully database-driven:
+- No tool definitions in `config.json`
+- Tools are registered via API/CLI and stored in SQLite
+- Each tool gets its own folder: `tools/<name-with-spaces-replaced-by-dash>`
 
-## Architecture
-- Config: JSON (`configs/config.json`)
-- Process manager: PM2 (`pm2` is checked and can be installed automatically with npm)
-- Database: SQLite (`data/manager.sqlite`)
-- Backup path: `backups/<tool>/<timestamp>/`
+## Features
+- Register new tools with:
+  - binary download URL
+  - optional SHA256 checksum
+  - version command
+  - runtime args
+- PM2 lifecycle management:
+  - start/stop/restart/provision/update
+  - handles tools not yet registered in PM2
+- Manual updates only (no background updater)
+- Backup before update and rollback (keep last 3 backups)
+- Rollback to latest/specific backup
+- Cleanup endpoint for one tool only (tool dir + backups + db rows)
+- SQLite history of tool versions/updates
+- Manager self-update endpoint (not stored in tool version history)
 
-## Configuration
-Copy and edit:
+## Runtime Configuration
+Use CLI flags or env vars for manager runtime only.
 
-```bash
-cp configs/config.example.json configs/config.json
-```
+Flags:
+- `--listen-addr` default `:10000`
+- `--data-dir` default `./data`
+- `--backups-dir` default `./backups`
+- `--tools-dir` default `./tools`
+- `--pm2-bin` default `pm2`
+- `--git-bin` default `git`
+- `--command-timeout-secs` default `90`
+- `--restart-on-boot` default `false`
 
-Main fields per tool:
-- `name`: PM2 process name
-- `repo`: Git repository URL (optional if already present locally)
-- `branch`: Git branch for updates/provision
-- `work_dir`: local source/work directory (absolute path)
-- `binary_path`: binary path (absolute path)
-- `args`: runtime args passed to binary under PM2
-- `version_command`: command to read version, e.g. `[/path/tool, version]`
-- `install_command`: optional command to run during first provisioning
-- `update_command`: optional command to run during updates
-- `env_file`, `config_file`, `configs_dir`: optional paths included in backup
+Equivalent env vars:
+- `HTM_LISTEN_ADDR`
+- `HTM_DATA_DIR`
+- `HTM_BACKUPS_DIR`
+- `HTM_TOOLS_DIR`
+- `HTM_PM2_BIN`
+- `HTM_GIT_BIN`
+- `HTM_COMMAND_TIMEOUT_SECS`
+- `HTM_RESTART_ON_BOOT`
 
 ## Build
 
@@ -47,7 +56,7 @@ go build -o bin/htm ./cmd/htm
 ## Run
 
 ```bash
-./bin/hubfly-tool-manager -config ./configs/config.json
+./bin/hubfly-tool-manager
 ```
 
 ## HTTP API
@@ -58,60 +67,55 @@ Health:
 curl -s http://127.0.0.1:10000/health
 ```
 
-List tools:
+Register tool:
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Hubfly Scale",
+    "download_url": "https://example.com/releases/hubfly-scale",
+    "checksum": "sha256:abc123...",
+    "version_command": ["{binary}", "version"],
+    "args": ["serve", "--port", "9010"]
+  }'
+```
+
+List/status:
 ```bash
 curl -s http://127.0.0.1:10000/tools
+curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale
+curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/version
 ```
 
-Tool status:
+Lifecycle:
 ```bash
-curl -s http://127.0.0.1:10000/tools/example-tool
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/start
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/stop
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/restart
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/provision
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/update
 ```
 
-Start / Stop / Restart:
+Backups/rollback:
 ```bash
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/start
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/stop
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/restart
-```
-
-Provision (first install + PM2 registration):
-```bash
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/provision
-```
-
-Manual update (backup + git pull + build command + restart):
-```bash
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/update
-```
-
-List backups:
-```bash
-curl -s http://127.0.0.1:10000/tools/example-tool/backups
-```
-
-Rollback:
-```bash
-# rollback to most recent backup
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/rollback
-
-# rollback to specific backup id
-curl -s -X POST http://127.0.0.1:10000/tools/example-tool/rollback \
+curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/backups
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/rollback
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/rollback \
   -H 'Content-Type: application/json' \
   -d '{"backup_id":"20260308T010203Z"}'
 ```
 
-Version:
-```bash
-curl -s http://127.0.0.1:10000/tools/example-tool/version
-```
-
 History:
 ```bash
-curl -s "http://127.0.0.1:10000/tools/example-tool/history?limit=10"
+curl -s "http://127.0.0.1:10000/tools/Hubfly%20Scale/history?limit=10"
 ```
 
-Self update (manager only):
+Cleanup one tool:
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/cleanup
+```
+
+Self update:
 ```bash
 curl -s -X POST http://127.0.0.1:10000/self/update \
   -H 'Content-Type: application/json' \
@@ -119,38 +123,32 @@ curl -s -X POST http://127.0.0.1:10000/self/update \
 ```
 
 ## CLI
-Set server URL if needed:
-
-```bash
-export HTM_SERVER=http://127.0.0.1:10000
-```
-
-Examples:
+Default server: `HTM_SERVER=http://127.0.0.1:10000`
 
 ```bash
 htm health
+htm register --name "Hubfly Scale" --url "https://example.com/releases/hubfly-scale" --checksum "sha256:abc123" --version-cmd "{binary},version" --args "serve,--port,9010"
 htm list
-htm status example-tool
-htm version example-tool
-htm history example-tool 10
-htm backups example-tool
-htm provision example-tool
-htm update example-tool
-htm rollback example-tool
-htm rollback example-tool 20260308T010203Z
-htm restart example-tool
-htm self-update /opt/hubfly-tool-manager go build ./cmd/server
+htm status "Hubfly Scale"
+htm version "Hubfly Scale"
+htm start "Hubfly Scale"
+htm update "Hubfly Scale"
+htm backups "Hubfly Scale"
+htm rollback "Hubfly Scale"
+htm cleanup "Hubfly Scale"
 ```
 
-## Stability Notes
-- HTTP server has timeout settings and panic recovery middleware.
-- If version command is missing/fails, response uses `"unknown"` instead of failing.
-- `start` and `restart` handle first-time PM2 registration automatically.
-- Tool updates are manual only (no background updater).
-- Rollback creates a fresh safeguard snapshot before restoring the selected backup.
-- Manager self-update does not write into `tool_versions` table.
+## Tool Folder Layout
+For `name = "Hubfly Scale"`, tool directory is:
 
-## Recommended Production Setup
-- Run this manager itself under PM2 or systemd.
-- Configure PM2 startup (`pm2 startup`) and `pm2 save` persistence.
-- Keep tool binaries and configs on durable storage.
+```text
+./tools/hubfly-scale/
+```
+
+Expected managed files in that folder:
+- downloaded binary
+- optional `config.json`
+- optional `.env`
+- optional `configs/`
+
+Backup captures these files if present.
