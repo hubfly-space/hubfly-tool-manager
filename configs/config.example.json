@@ -1,0 +1,33 @@
+{
+  "manager": {
+    "listen_addr": ":8080",
+    "data_dir": "./data",
+    "backups_dir": "./backups",
+    "pm2_bin": "pm2",
+    "git_bin": "git",
+    "restart_on_boot": false,
+    "command_timeout_secs": 90
+  },
+  "tools": [
+    {
+      "name": "example-tool",
+      "repo": "git@github.com:example-org/example-tool.git",
+      "branch": "main",
+      "work_dir": "/opt/hubfly-tools/example-tool",
+      "binary_path": "/opt/hubfly-tools/example-tool/bin/example-tool",
+      "args": [
+        "serve",
+        "--port",
+        "9010"
+      ],
+      "version_command": [
+        "/opt/hubfly-tools/example-tool/bin/example-tool",
+        "version"
+      ],
+      "env_file": "/opt/hubfly-tools/example-tool/.env",
+      "config_file": "/opt/hubfly-tools/example-tool/config.json",
+      "configs_dir": "/opt/hubfly-tools/example-tool/configs",
+      "enabled": true
+    }
+  ]
+}
