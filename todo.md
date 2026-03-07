@@ -1,20 +1,20 @@
 # TODO
 
-## Core
-- [ ] Define tool JSON configuration schema and loader
-- [ ] Build SQLite storage for tool version/update history
-- [ ] Implement PM2 integration (install checks, start/stop/restart/status)
-- [ ] Implement tool updater with backups (keep last 3)
-- [ ] Implement self-update workflow (without tracking manager version)
-- [ ] Build HTTP API endpoints
-- [ ] Build CLI commands mapped to API/actions
-- [ ] Handle first-run unmanaged tools gracefully
+## Done
+- [x] Define tool JSON configuration schema and loader
+- [x] Build SQLite storage for tool version/update history
+- [x] Implement PM2 integration (install checks, start/stop/restart/status)
+- [x] Implement tool updater with backups (keep last 3)
+- [x] Implement self-update workflow (without tracking manager version)
+- [x] Build HTTP API endpoints
+- [x] Build CLI commands mapped to API/actions
+- [x] Handle first-run unmanaged tools gracefully
+- [x] Add defensive validation and panic recovery
+- [x] Write README with setup, curl, and CLI usage
 
-## Stability
-- [ ] Add defensive validation and error handling
-- [ ] Add panic recovery for HTTP server
-- [ ] Add retries/timeouts for external commands
-
-## Docs
-- [ ] Write README with setup, curl, and CLI usage
-- [ ] Keep progress log current
+## Next hardening
+- [ ] Add integration tests with PM2 mocks
+- [ ] Add auth/token protection for HTTP endpoints
+- [ ] Add structured metrics endpoint
+- [ ] Add rollback endpoint from backup snapshots
+- [ ] Add lock file to prevent multiple manager instances
