@@ -51,69 +51,69 @@ go build -o bin/htm ./cmd/htm
 ```
 
 ## HTTP API
-Default base URL: `http://127.0.0.1:8080`
+Default base URL: `http://127.0.0.1:10000`
 
 Health:
 ```bash
-curl -s http://127.0.0.1:8080/health
+curl -s http://127.0.0.1:10000/health
 ```
 
 List tools:
 ```bash
-curl -s http://127.0.0.1:8080/tools
+curl -s http://127.0.0.1:10000/tools
 ```
 
 Tool status:
 ```bash
-curl -s http://127.0.0.1:8080/tools/example-tool
+curl -s http://127.0.0.1:10000/tools/example-tool
 ```
 
 Start / Stop / Restart:
 ```bash
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/start
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/stop
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/restart
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/start
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/stop
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/restart
 ```
 
 Provision (first install + PM2 registration):
 ```bash
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/provision
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/provision
 ```
 
 Manual update (backup + git pull + build command + restart):
 ```bash
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/update
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/update
 ```
 
 List backups:
 ```bash
-curl -s http://127.0.0.1:8080/tools/example-tool/backups
+curl -s http://127.0.0.1:10000/tools/example-tool/backups
 ```
 
 Rollback:
 ```bash
 # rollback to most recent backup
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/rollback
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/rollback
 
 # rollback to specific backup id
-curl -s -X POST http://127.0.0.1:8080/tools/example-tool/rollback \
+curl -s -X POST http://127.0.0.1:10000/tools/example-tool/rollback \
   -H 'Content-Type: application/json' \
   -d '{"backup_id":"20260308T010203Z"}'
 ```
 
 Version:
 ```bash
-curl -s http://127.0.0.1:8080/tools/example-tool/version
+curl -s http://127.0.0.1:10000/tools/example-tool/version
 ```
 
 History:
 ```bash
-curl -s "http://127.0.0.1:8080/tools/example-tool/history?limit=10"
+curl -s "http://127.0.0.1:10000/tools/example-tool/history?limit=10"
 ```
 
 Self update (manager only):
 ```bash
-curl -s -X POST http://127.0.0.1:8080/self/update \
+curl -s -X POST http://127.0.0.1:10000/self/update \
   -H 'Content-Type: application/json' \
   -d '{"work_dir":"/opt/hubfly-tool-manager","update_command":["go","build","./cmd/server"]}'
 ```
@@ -122,7 +122,7 @@ curl -s -X POST http://127.0.0.1:8080/self/update \
 Set server URL if needed:
 
 ```bash
-export HTM_SERVER=http://127.0.0.1:8080
+export HTM_SERVER=http://127.0.0.1:10000
 ```
 
 Examples:

@@ -1,6 +1,6 @@
 {
   "manager": {
-    "listen_addr": ":8080",
+    "listen_addr": ":10000",
     "data_dir": "./data",
     "backups_dir": "./backups",
     "pm2_bin": "pm2",

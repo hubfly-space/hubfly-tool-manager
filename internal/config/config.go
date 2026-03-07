@@ -32,7 +32,7 @@ func Load(path string) (model.ManagerConfig, error) {
 
 func applyDefaults(cfg *model.ManagerConfig) {
 	if cfg.Manager.ListenAddr == "" {
-		cfg.Manager.ListenAddr = ":8080"
+		cfg.Manager.ListenAddr = ":10000"
 	}
 	if cfg.Manager.DataDir == "" {
 		cfg.Manager.DataDir = "./data"

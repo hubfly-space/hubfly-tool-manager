@@ -21,7 +21,7 @@ func main() {
 
 	baseURL := os.Getenv("HTM_SERVER")
 	if baseURL == "" {
-		baseURL = "http://127.0.0.1:8080"
+		baseURL = "http://127.0.0.1:10000"
 	}
 
 	cmd := os.Args[1]
@@ -77,7 +77,7 @@ Usage:
   htm self-update <work_dir> [command...]
 
 Env:
-  HTM_SERVER   default: http://127.0.0.1:8080`)
+  HTM_SERVER   default: http://127.0.0.1:10000`)
 }
 
 func history(baseURL string, args []string) error {
