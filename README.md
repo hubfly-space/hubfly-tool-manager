@@ -7,6 +7,7 @@ It provides:
 - CLI (`htm`) for the same operations
 - SQLite version history per tool (manual updates only)
 - Backup before each tool update, keeping only the last 3 backups per tool
+- Rollback endpoint/command to restore from retained backups
 - Safe version probing even when a tool has no version command
 - Self-update endpoint/command for the manager (not stored in tool version history)
 - First-run handling when tools are not yet registered in PM2
@@ -84,6 +85,22 @@ Manual update (backup + git pull + build command + restart):
 curl -s -X POST http://127.0.0.1:8080/tools/example-tool/update
 ```
 
+List backups:
+```bash
+curl -s http://127.0.0.1:8080/tools/example-tool/backups
+```
+
+Rollback:
+```bash
+# rollback to most recent backup
+curl -s -X POST http://127.0.0.1:8080/tools/example-tool/rollback
+
+# rollback to specific backup id
+curl -s -X POST http://127.0.0.1:8080/tools/example-tool/rollback \
+  -H 'Content-Type: application/json' \
+  -d '{"backup_id":"20260308T010203Z"}'
+```
+
 Version:
 ```bash
 curl -s http://127.0.0.1:8080/tools/example-tool/version
@@ -116,8 +133,11 @@ htm list
 htm status example-tool
 htm version example-tool
 htm history example-tool 10
+htm backups example-tool
 htm provision example-tool
 htm update example-tool
+htm rollback example-tool
+htm rollback example-tool 20260308T010203Z
 htm restart example-tool
 htm self-update /opt/hubfly-tool-manager go build ./cmd/server
 ```
@@ -127,6 +147,7 @@ htm self-update /opt/hubfly-tool-manager go build ./cmd/server
 - If version command is missing/fails, response uses `"unknown"` instead of failing.
 - `start` and `restart` handle first-time PM2 registration automatically.
 - Tool updates are manual only (no background updater).
+- Rollback creates a fresh safeguard snapshot before restoring the selected backup.
 - Manager self-update does not write into `tool_versions` table.
 
 ## Recommended Production Setup

@@ -15,3 +15,7 @@
 - Implemented robust HTTP API with panic recovery and server timeouts.
 - Implemented CLI (`htm`) for all core management operations.
 - Added full README documentation with curl and CLI examples.
+- Added rollback feature:
+  - list backup snapshots per tool
+  - restore latest or selected backup via API/CLI
+  - pre-rollback safeguard snapshot before restore

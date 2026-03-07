@@ -16,5 +16,4 @@
 - [ ] Add integration tests with PM2 mocks
 - [ ] Add auth/token protection for HTTP endpoints
 - [ ] Add structured metrics endpoint
-- [ ] Add rollback endpoint from backup snapshots
 - [ ] Add lock file to prevent multiple manager instances
