@@ -1,11 +1,16 @@
 package tool
 
 import (
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,8 +24,10 @@ import (
 	"hubfly-tool-manager/internal/pm2"
 )
 
+const backupRetention = 3
+
 type Manager struct {
-	cfg    model.ManagerConfig
+	cfg    model.RuntimeConfig
 	store  *db.Store
 	pm2    *pm2.Client
 	runner app.CommandRunner
@@ -29,22 +36,21 @@ type Manager struct {
 	mu sync.Mutex
 }
 
-func NewManager(cfg model.ManagerConfig, store *db.Store, pm2c *pm2.Client, logger *log.Logger) *Manager {
+func NewManager(cfg model.RuntimeConfig, store *db.Store, pm2c *pm2.Client, logger *log.Logger) *Manager {
 	return &Manager{
 		cfg:    cfg,
 		store:  store,
 		pm2:    pm2c,
-		runner: app.CommandRunner{Timeout: time.Duration(cfg.Manager.CommandTimeoutSecs) * time.Second},
+		runner: app.CommandRunner{Timeout: time.Duration(cfg.CommandTimeoutSecs) * time.Second},
 		logger: logger,
 	}
 }
 
 func (m *Manager) EnsureRuntime() error {
-	if err := os.MkdirAll(m.cfg.Manager.DataDir, 0o755); err != nil {
-		return fmt.Errorf("create data dir: %w", err)
-	}
-	if err := os.MkdirAll(m.cfg.Manager.BackupsDir, 0o755); err != nil {
-		return fmt.Errorf("create backups dir: %w", err)
+	for _, dir := range []string{m.cfg.DataDir, m.cfg.BackupsDir, m.cfg.ToolsDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create runtime dir %s: %w", dir, err)
+		}
 	}
 	if err := m.pm2.EnsureInstalled(); err != nil {
 		return err
@@ -52,10 +58,104 @@ func (m *Manager) EnsureRuntime() error {
 	return nil
 }
 
+func (m *Manager) StartAllRegistered() {
+	tools, err := m.store.ListTools()
+	if err != nil {
+		m.logger.Printf("list tools for boot start failed: %v", err)
+		return
+	}
+	for _, t := range tools {
+		if err := m.Start(t.Name); err != nil {
+			m.logger.Printf("boot start warning for %s: %v", t.Name, err)
+		}
+	}
+}
+
+func (m *Manager) RegisterTool(req model.RegisterToolRequest) (model.ToolConfig, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return model.ToolConfig{}, errors.New("name is required")
+	}
+	downloadURL := strings.TrimSpace(req.DownloadURL)
+	if downloadURL == "" {
+		return model.ToolConfig{}, errors.New("download_url is required")
+	}
+	if _, err := url.ParseRequestURI(downloadURL); err != nil {
+		return model.ToolConfig{}, fmt.Errorf("invalid download_url: %w", err)
+	}
+
+	slug := slugifyName(name)
+	toolDir := filepath.Join(m.cfg.ToolsDir, slug)
+	binaryPath := filepath.Join(toolDir, binaryNameFromURL(downloadURL, slug))
+
+	t := model.ToolConfig{
+		Name:           name,
+		Slug:           slug,
+		ToolDir:        toolDir,
+		BinaryPath:     binaryPath,
+		DownloadURL:    downloadURL,
+		Checksum:       strings.TrimSpace(req.Checksum),
+		Args:           cleanArgs(req.Args),
+		VersionCommand: cleanArgs(req.VersionCommand),
+	}
+
+	if err := os.MkdirAll(toolDir, 0o755); err != nil {
+		return model.ToolConfig{}, fmt.Errorf("create tool dir: %w", err)
+	}
+	if err := m.downloadBinary(t.DownloadURL, t.BinaryPath, t.Checksum); err != nil {
+		return model.ToolConfig{}, err
+	}
+
+	if err := m.store.CreateTool(t); err != nil {
+		return model.ToolConfig{}, err
+	}
+
+	created, err := m.store.GetTool(t.Name)
+	if err != nil {
+		return model.ToolConfig{}, err
+	}
+	return created, nil
+}
+
+func (m *Manager) CleanupTool(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	t, err := m.mustTool(name)
+	if err != nil {
+		return err
+	}
+
+	_ = m.pm2.Stop(t.Name)
+	_ = m.pm2.Delete(t.Name)
+	_ = m.pm2.Save()
+
+	if err := os.RemoveAll(t.ToolDir); err != nil {
+		return fmt.Errorf("remove tool dir: %w", err)
+	}
+	if err := os.RemoveAll(filepath.Join(m.cfg.BackupsDir, t.Slug)); err != nil {
+		return fmt.Errorf("remove backup dir: %w", err)
+	}
+	if err := m.store.DeleteVersions(t.Name); err != nil {
+		return err
+	}
+	if err := m.store.DeleteTool(t.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) ListStatus() []model.ToolRuntimeStatus {
-	out := make([]model.ToolRuntimeStatus, 0, len(m.cfg.Tools))
-	for _, t := range m.cfg.Tools {
-		out = append(out, m.GetStatus(t.Name))
+	tools, err := m.store.ListTools()
+	if err != nil {
+		return []model.ToolRuntimeStatus{{Name: "", Error: err.Error()}}
+	}
+	out := make([]model.ToolRuntimeStatus, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, m.getStatusForTool(t))
 	}
 	return out
 }
@@ -65,7 +165,10 @@ func (m *Manager) GetStatus(name string) model.ToolRuntimeStatus {
 	if err != nil {
 		return model.ToolRuntimeStatus{Name: name, Error: err.Error()}
 	}
+	return m.getStatusForTool(t)
+}
 
+func (m *Manager) getStatusForTool(t model.ToolConfig) model.ToolRuntimeStatus {
 	status := model.ToolRuntimeStatus{Name: t.Name, Version: "unknown"}
 	pm2Status, err := m.pm2.Status(t.Name)
 	if err != nil {
@@ -73,21 +176,21 @@ func (m *Manager) GetStatus(name string) model.ToolRuntimeStatus {
 	} else {
 		status.PM2Status = pm2Status
 	}
-
 	if v, err := m.GetToolVersion(t); err == nil {
 		status.Version = v
 	}
-
 	if record, err := m.store.LatestVersion(t.Name); err == nil {
 		status.UpdatedAt = record.UpdatedAt
 	}
-
 	return status
 }
 
 func (m *Manager) Start(name string) error {
 	t, err := m.mustTool(name)
 	if err != nil {
+		return err
+	}
+	if err := m.ensureBinary(t); err != nil {
 		return err
 	}
 	if err := m.pm2.StartOrReload(t); err != nil {
@@ -111,6 +214,9 @@ func (m *Manager) Restart(name string) error {
 	if err != nil {
 		return err
 	}
+	if err := m.ensureBinary(t); err != nil {
+		return err
+	}
 	if err := m.pm2.StartOrReload(t); err != nil {
 		return err
 	}
@@ -125,31 +231,17 @@ func (m *Manager) Provision(name string) error {
 	if err != nil {
 		return err
 	}
-
-	if err := m.ensureWorkDir(t); err != nil {
+	if err := m.ensureBinary(t); err != nil {
 		return err
 	}
-
-	if err := m.runCommandInDir(t.WorkDir, t.InstallCommand, "install"); err != nil {
-		return err
-	}
-
 	if err := m.pm2.StartOrReload(t); err != nil {
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
 		return err
 	}
-
 	version, _ := m.GetToolVersion(t)
-	commitHash, _ := m.currentCommit(t.WorkDir)
-	_ = m.store.InsertVersion(model.VersionRecord{
-		ToolName:   t.Name,
-		Version:    version,
-		UpdatedAt:  time.Now().UTC(),
-		CommitHash: commitHash,
-		Notes:      "provision",
-	})
+	_ = m.store.InsertVersion(model.VersionRecord{ToolName: t.Name, Version: versionOrUnknown(version), UpdatedAt: time.Now().UTC(), Notes: "provision"})
 	return nil
 }
 
@@ -161,7 +253,7 @@ func (m *Manager) Update(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := m.ensureWorkDir(t); err != nil {
+	if err := m.ensureBinary(t); err != nil {
 		return err
 	}
 
@@ -169,69 +261,40 @@ func (m *Manager) Update(name string) error {
 	if err != nil {
 		return err
 	}
-
-	if t.Repo != "" {
-		if _, err := os.Stat(filepath.Join(t.WorkDir, ".git")); err == nil {
-			if _, err := m.runner.Run(m.cfg.Manager.GitBin, "-C", t.WorkDir, "fetch", "--all", "--prune"); err != nil {
-				return fmt.Errorf("git fetch failed: %w", err)
-			}
-			if _, err := m.runner.Run(m.cfg.Manager.GitBin, "-C", t.WorkDir, "checkout", t.Branch); err != nil {
-				return fmt.Errorf("git checkout failed: %w", err)
-			}
-			if _, err := m.runner.Run(m.cfg.Manager.GitBin, "-C", t.WorkDir, "pull", "--ff-only", "origin", t.Branch); err != nil {
-				return fmt.Errorf("git pull failed: %w", err)
-			}
-		}
-	}
-
-	if err := m.runCommandInDir(t.WorkDir, t.UpdateCommand, "update"); err != nil {
+	if err := m.downloadBinary(t.DownloadURL, t.BinaryPath, t.Checksum); err != nil {
 		return err
 	}
-
 	if err := m.pm2.StartOrReload(t); err != nil {
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
 		return err
 	}
-
-	if err := m.trimBackups(t.Name, 3); err != nil {
+	if err := m.trimBackups(t.Slug, backupRetention); err != nil {
 		m.logger.Printf("backup trim warning for %s: %v", t.Name, err)
 	}
-
 	version, _ := m.GetToolVersion(t)
-	if version == "" {
-		version = "unknown"
-	}
-	commitHash, _ := m.currentCommit(t.WorkDir)
-	if err := m.store.InsertVersion(model.VersionRecord{
-		ToolName:   t.Name,
-		Version:    version,
-		UpdatedAt:  time.Now().UTC(),
-		CommitHash: commitHash,
-		Notes:      fmt.Sprintf("backup=%s", backupDir),
-	}); err != nil {
-		return err
-	}
+	_ = m.store.InsertVersion(model.VersionRecord{
+		ToolName:  t.Name,
+		Version:   versionOrUnknown(version),
+		UpdatedAt: time.Now().UTC(),
+		Notes:     fmt.Sprintf("backup=%s", backupDir),
+	})
 	return nil
 }
 
-// SelfUpdate updates manager source/workdir and optionally runs configured update command.
-// By design it does not write to tool_versions table.
 func (m *Manager) SelfUpdate(workDir string, updateCommand []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if workDir == "" {
+	if strings.TrimSpace(workDir) == "" {
 		return errors.New("self-update workDir is required")
 	}
-
 	if _, err := os.Stat(filepath.Join(workDir, ".git")); err == nil {
-		if _, err := m.runner.Run(m.cfg.Manager.GitBin, "-C", workDir, "pull", "--ff-only"); err != nil {
+		if _, err := m.runner.Run(m.cfg.GitBin, "-C", workDir, "pull", "--ff-only"); err != nil {
 			return fmt.Errorf("self-update git pull failed: %w", err)
 		}
 	}
-
 	if len(updateCommand) > 0 {
 		if _, err := m.runRawInDir(workDir, updateCommand); err != nil {
 			return fmt.Errorf("self update command failed: %w", err)
@@ -248,10 +311,11 @@ func (m *Manager) History(name string, limit int) ([]model.VersionRecord, error)
 }
 
 func (m *Manager) ListBackups(name string) ([]model.BackupSnapshot, error) {
-	if _, err := m.mustTool(name); err != nil {
+	t, err := m.mustTool(name)
+	if err != nil {
 		return nil, err
 	}
-	return m.listBackups(name)
+	return m.listBackups(t)
 }
 
 func (m *Manager) Rollback(name, backupID string) error {
@@ -262,8 +326,7 @@ func (m *Manager) Rollback(name, backupID string) error {
 	if err != nil {
 		return err
 	}
-
-	backups, err := m.listBackups(name)
+	backups, err := m.listBackups(t)
 	if err != nil {
 		return err
 	}
@@ -290,37 +353,27 @@ func (m *Manager) Rollback(name, backupID string) error {
 	if err != nil {
 		return fmt.Errorf("create pre-rollback backup: %w", err)
 	}
-
 	if err := m.pm2.Stop(t.Name); err != nil {
 		return err
 	}
-
 	if err := m.restoreToolFromBackup(t, selected.Path); err != nil {
 		return fmt.Errorf("restore from backup %s: %w", selected.ID, err)
 	}
-
 	if err := m.pm2.StartOrReload(t); err != nil {
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
 		return err
 	}
-
-	if err := m.trimBackups(t.Name, 3); err != nil {
+	if err := m.trimBackups(t.Slug, backupRetention); err != nil {
 		m.logger.Printf("backup trim warning for %s: %v", t.Name, err)
 	}
-
 	version, _ := m.GetToolVersion(t)
-	if version == "" {
-		version = "unknown"
-	}
-	commitHash, _ := m.currentCommit(t.WorkDir)
 	_ = m.store.InsertVersion(model.VersionRecord{
-		ToolName:   t.Name,
-		Version:    version,
-		UpdatedAt:  time.Now().UTC(),
-		CommitHash: commitHash,
-		Notes:      fmt.Sprintf("rollback_from=%s safeguard=%s", selected.Path, safeguardDir),
+		ToolName:  t.Name,
+		Version:   versionOrUnknown(version),
+		UpdatedAt: time.Now().UTC(),
+		Notes:     fmt.Sprintf("rollback_from=%s safeguard=%s", selected.Path, safeguardDir),
 	})
 	return nil
 }
@@ -329,50 +382,38 @@ func (m *Manager) GetToolVersion(t model.ToolConfig) (string, error) {
 	if len(t.VersionCommand) == 0 {
 		return "unknown", nil
 	}
-	res, err := m.runner.Run(t.VersionCommand[0], t.VersionCommand[1:]...)
-	if err != nil {
-		return "unknown", nil
+	cmd := make([]string, len(t.VersionCommand))
+	copy(cmd, t.VersionCommand)
+	for i := range cmd {
+		cmd[i] = strings.ReplaceAll(cmd[i], "{binary}", t.BinaryPath)
+		cmd[i] = strings.ReplaceAll(cmd[i], "{tool_dir}", t.ToolDir)
 	}
-	if res.Stdout == "" {
+	res, err := m.runner.Run(cmd[0], cmd[1:]...)
+	if err != nil || res.Stdout == "" {
 		return "unknown", nil
 	}
 	return firstLine(res.Stdout), nil
 }
 
 func (m *Manager) mustTool(name string) (model.ToolConfig, error) {
-	for _, t := range m.cfg.Tools {
-		if t.Name == name {
-			return t, nil
-		}
-	}
-	return model.ToolConfig{}, fmt.Errorf("unknown tool: %s", name)
-}
-
-func (m *Manager) ensureWorkDir(t model.ToolConfig) error {
-	if _, err := os.Stat(t.WorkDir); err == nil {
-		return nil
-	}
-	if t.Repo == "" {
-		return fmt.Errorf("workdir missing and repo not configured for %s", t.Name)
-	}
-	if err := os.MkdirAll(filepath.Dir(t.WorkDir), 0o755); err != nil {
-		return fmt.Errorf("prepare parent dir: %w", err)
-	}
-	if _, err := m.runner.Run(m.cfg.Manager.GitBin, "clone", "-b", t.Branch, t.Repo, t.WorkDir); err != nil {
-		return fmt.Errorf("clone repo for %s: %w", t.Name, err)
-	}
-	return nil
-}
-
-func (m *Manager) runCommandInDir(workDir string, cmd []string, label string) error {
-	if len(cmd) == 0 {
-		return nil
-	}
-	_, err := m.runRawInDir(workDir, cmd)
+	t, err := m.store.GetTool(name)
 	if err != nil {
-		return fmt.Errorf("%s command failed: %w", label, err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.ToolConfig{}, fmt.Errorf("unknown tool: %s", name)
+		}
+		return model.ToolConfig{}, err
 	}
-	return nil
+	return t, nil
+}
+
+func (m *Manager) ensureBinary(t model.ToolConfig) error {
+	if err := os.MkdirAll(t.ToolDir, 0o755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(t.BinaryPath); err == nil {
+		return os.Chmod(t.BinaryPath, 0o755)
+	}
+	return m.downloadBinary(t.DownloadURL, t.BinaryPath, t.Checksum)
 }
 
 func (m *Manager) runRawInDir(workDir string, cmd []string) (app.Result, error) {
@@ -383,53 +424,48 @@ func (m *Manager) runRawInDir(workDir string, cmd []string) (app.Result, error) 
 		return app.Result{}, errors.New("command executable is empty")
 	}
 	if cmd[0] == "git" {
-		return m.runner.RunInDir(workDir, m.cfg.Manager.GitBin, cmd[1:]...)
+		return m.runner.RunInDir(workDir, m.cfg.GitBin, cmd[1:]...)
 	}
 	return m.runner.RunInDir(workDir, cmd[0], cmd[1:]...)
 }
 
 func (m *Manager) backupToolFiles(t model.ToolConfig) (string, error) {
 	now := time.Now().UTC().Format("20060102T150405Z")
-	dir := filepath.Join(m.cfg.Manager.BackupsDir, t.Name, now)
+	dir := filepath.Join(m.cfg.BackupsDir, t.Slug, now)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create backup dir: %w", err)
 	}
 
 	copyIfExists := func(src, dstName string) error {
-		if src == "" {
-			return nil
-		}
 		if _, err := os.Stat(src); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil
 			}
 			return err
 		}
-		dst := filepath.Join(dir, dstName)
-		return copyPath(src, dst)
+		return copyPath(src, filepath.Join(dir, dstName))
 	}
 
 	if err := copyIfExists(t.BinaryPath, "binary"); err != nil {
 		return "", fmt.Errorf("backup binary: %w", err)
 	}
-	if err := copyIfExists(t.ConfigFile, "config.json"); err != nil {
+	if err := copyIfExists(filepath.Join(t.ToolDir, "config.json"), "config.json"); err != nil {
 		return "", fmt.Errorf("backup config file: %w", err)
 	}
-	if err := copyIfExists(t.EnvFile, ".env"); err != nil {
+	if err := copyIfExists(filepath.Join(t.ToolDir, ".env"), ".env"); err != nil {
 		return "", fmt.Errorf("backup env file: %w", err)
 	}
-	if err := copyIfExists(t.ConfigsDir, "configs"); err != nil {
+	if err := copyIfExists(filepath.Join(t.ToolDir, "configs"), "configs"); err != nil {
 		return "", fmt.Errorf("backup configs dir: %w", err)
 	}
-
 	return dir, nil
 }
 
-func (m *Manager) trimBackups(toolName string, keep int) error {
+func (m *Manager) trimBackups(toolSlug string, keep int) error {
 	if keep <= 0 {
 		keep = 1
 	}
-	list, err := m.listBackups(toolName)
+	list, err := m.listBackupsBySlug(toolSlug)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -447,13 +483,16 @@ func (m *Manager) trimBackups(toolName string, keep int) error {
 	return nil
 }
 
-func (m *Manager) listBackups(toolName string) ([]model.BackupSnapshot, error) {
-	root := filepath.Join(m.cfg.Manager.BackupsDir, toolName)
+func (m *Manager) listBackups(t model.ToolConfig) ([]model.BackupSnapshot, error) {
+	return m.listBackupsBySlug(t.Slug)
+}
+
+func (m *Manager) listBackupsBySlug(toolSlug string) ([]model.BackupSnapshot, error) {
+	root := filepath.Join(m.cfg.BackupsDir, toolSlug)
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
-
 	list := make([]model.BackupSnapshot, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
@@ -465,7 +504,7 @@ func (m *Manager) listBackups(toolName string) ([]model.BackupSnapshot, error) {
 		}
 		list = append(list, model.BackupSnapshot{
 			ID:        e.Name(),
-			ToolName:  toolName,
+			ToolName:  toolSlug,
 			Path:      filepath.Join(root, e.Name()),
 			CreatedAt: info.ModTime().UTC(),
 		})
@@ -474,15 +513,152 @@ func (m *Manager) listBackups(toolName string) ([]model.BackupSnapshot, error) {
 	return list, nil
 }
 
-func (m *Manager) currentCommit(workDir string) (string, error) {
-	if _, err := os.Stat(filepath.Join(workDir, ".git")); err != nil {
-		return "", err
+func (m *Manager) restoreToolFromBackup(t model.ToolConfig, backupDir string) error {
+	restoreFileIfExists := func(src, dst string) error {
+		if _, err := os.Stat(src); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		return copyPath(src, dst)
 	}
-	res, err := m.runner.Run(m.cfg.Manager.GitBin, "-C", workDir, "rev-parse", "HEAD")
+	restoreDirIfExists := func(src, dst string) error {
+		if _, err := os.Stat(src); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		_ = os.RemoveAll(dst)
+		return copyPath(src, dst)
+	}
+
+	if err := restoreFileIfExists(filepath.Join(backupDir, "binary"), t.BinaryPath); err != nil {
+		return fmt.Errorf("restore binary: %w", err)
+	}
+	if err := restoreFileIfExists(filepath.Join(backupDir, "config.json"), filepath.Join(t.ToolDir, "config.json")); err != nil {
+		return fmt.Errorf("restore config file: %w", err)
+	}
+	if err := restoreFileIfExists(filepath.Join(backupDir, ".env"), filepath.Join(t.ToolDir, ".env")); err != nil {
+		return fmt.Errorf("restore env file: %w", err)
+	}
+	if err := restoreDirIfExists(filepath.Join(backupDir, "configs"), filepath.Join(t.ToolDir, "configs")); err != nil {
+		return fmt.Errorf("restore configs dir: %w", err)
+	}
+	return os.Chmod(t.BinaryPath, 0o755)
+}
+
+func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return fmt.Errorf("prepare binary dir: %w", err)
+	}
+
+	tmpPath := targetPath + ".tmp"
+	if err := os.RemoveAll(tmpPath); err != nil {
+		return err
+	}
+
+	resp, err := http.Get(downloadURL) // #nosec G107
 	if err != nil {
-		return "", err
+		return fmt.Errorf("download binary: %w", err)
 	}
-	return strings.TrimSpace(res.Stdout), nil
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("download binary status %d", resp.StatusCode)
+	}
+
+	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return fmt.Errorf("open temp binary: %w", err)
+	}
+
+	h := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(f, h), resp.Body); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("write downloaded binary: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close temp binary: %w", err)
+	}
+
+	if checksum != "" {
+		actual := hex.EncodeToString(h.Sum(nil))
+		expected := normalizeChecksum(checksum)
+		if actual != expected {
+			_ = os.Remove(tmpPath)
+			return fmt.Errorf("checksum mismatch: expected=%s got=%s", expected, actual)
+		}
+	}
+
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("activate new binary: %w", err)
+	}
+	if err := os.Chmod(targetPath, 0o755); err != nil {
+		return fmt.Errorf("chmod +x binary: %w", err)
+	}
+	return nil
+}
+
+func normalizeChecksum(v string) string {
+	x := strings.TrimSpace(strings.ToLower(v))
+	x = strings.TrimPrefix(x, "sha256:")
+	return x
+}
+
+func slugifyName(name string) string {
+	n := strings.TrimSpace(strings.ToLower(name))
+	n = strings.ReplaceAll(n, " ", "-")
+	var b strings.Builder
+	for _, r := range n {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_':
+			b.WriteRune('-')
+		default:
+			b.WriteRune('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		out = "tool"
+	}
+	return out
+}
+
+func binaryNameFromURL(downloadURL, fallback string) string {
+	u, err := url.Parse(downloadURL)
+	if err != nil {
+		return fallback
+	}
+	base := filepath.Base(strings.TrimSpace(u.Path))
+	if base == "" || base == "." || base == "/" {
+		return fallback
+	}
+	return base
+}
+
+func cleanArgs(args []string) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		a = strings.TrimSpace(a)
+		if a != "" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func versionOrUnknown(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "unknown"
+	}
+	return v
 }
 
 func firstLine(s string) string {
@@ -546,48 +722,6 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 
 	if _, err := io.Copy(out, in); err != nil {
 		return err
-	}
-	return nil
-}
-
-func (m *Manager) restoreToolFromBackup(t model.ToolConfig, backupDir string) error {
-	restoreFileIfExists := func(src, dst string) error {
-		if dst == "" {
-			return nil
-		}
-		if _, err := os.Stat(src); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return nil
-			}
-			return err
-		}
-		return copyPath(src, dst)
-	}
-	restoreDirIfExists := func(src, dst string) error {
-		if dst == "" {
-			return nil
-		}
-		if _, err := os.Stat(src); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return nil
-			}
-			return err
-		}
-		_ = os.RemoveAll(dst)
-		return copyPath(src, dst)
-	}
-
-	if err := restoreFileIfExists(filepath.Join(backupDir, "binary"), t.BinaryPath); err != nil {
-		return fmt.Errorf("restore binary: %w", err)
-	}
-	if err := restoreFileIfExists(filepath.Join(backupDir, "config.json"), t.ConfigFile); err != nil {
-		return fmt.Errorf("restore config file: %w", err)
-	}
-	if err := restoreFileIfExists(filepath.Join(backupDir, ".env"), t.EnvFile); err != nil {
-		return fmt.Errorf("restore env file: %w", err)
-	}
-	if err := restoreDirIfExists(filepath.Join(backupDir, "configs"), t.ConfigsDir); err != nil {
-		return fmt.Errorf("restore configs dir: %w", err)
 	}
 	return nil
 }

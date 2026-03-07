@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,6 +32,8 @@ func main() {
 	switch cmd {
 	case "health":
 		err = doGet(baseURL, "/health")
+	case "register":
+		err = register(baseURL, args)
 	case "list":
 		err = doGet(baseURL, "/tools")
 	case "status":
@@ -45,6 +48,8 @@ func main() {
 		err = requireToolAndPost(baseURL, args, "/"+cmd, nil)
 	case "rollback":
 		err = rollback(baseURL, args)
+	case "cleanup":
+		err = requireToolAndPost(baseURL, args, "/cleanup", nil)
 	case "self-update":
 		err = selfUpdate(baseURL, args)
 	default:
@@ -63,6 +68,7 @@ func usage() {
 
 Usage:
   htm health
+  htm register --name <name> --url <download_url> [--checksum <sha256>] [--version-cmd <comma-separated>] [--args <comma-separated>]
   htm list
   htm status <tool>
   htm version <tool>
@@ -74,10 +80,61 @@ Usage:
   htm provision <tool>
   htm update <tool>
   htm rollback <tool> [backup_id]
+  htm cleanup <tool>
   htm self-update <work_dir> [command...]
 
 Env:
   HTM_SERVER   default: http://127.0.0.1:10000`)
+}
+
+func register(baseURL string, args []string) error {
+	fs := flag.NewFlagSet("register", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	name := fs.String("name", "", "tool name")
+	downloadURL := fs.String("url", "", "download url")
+	checksum := fs.String("checksum", "", "optional sha256 checksum")
+	versionCmd := fs.String("version-cmd", "", "comma-separated version command")
+	toolArgs := fs.String("args", "", "comma-separated runtime args")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*name) == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if strings.TrimSpace(*downloadURL) == "" {
+		return fmt.Errorf("--url is required")
+	}
+
+	body := map[string]any{
+		"name":         strings.TrimSpace(*name),
+		"download_url": strings.TrimSpace(*downloadURL),
+	}
+	if strings.TrimSpace(*checksum) != "" {
+		body["checksum"] = strings.TrimSpace(*checksum)
+	}
+	if items := parseCSV(*versionCmd); len(items) > 0 {
+		body["version_command"] = items
+	}
+	if items := parseCSV(*toolArgs); len(items) > 0 {
+		body["args"] = items
+	}
+	return doPost(baseURL, "/tools/register", body)
+}
+
+func parseCSV(v string) []string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func history(baseURL string, args []string) error {

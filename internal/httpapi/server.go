@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"hubfly-tool-manager/internal/model"
 	"hubfly-tool-manager/internal/tool"
 )
 
@@ -33,6 +34,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
+	s.mux.HandleFunc("POST /tools/register", s.handleRegister)
 	s.mux.HandleFunc("GET /tools", s.handleListTools)
 	s.mux.HandleFunc("GET /tools/{name}", s.handleToolStatus)
 	s.mux.HandleFunc("GET /tools/{name}/history", s.handleHistory)
@@ -44,11 +46,33 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /tools/{name}/provision", s.handleProvision)
 	s.mux.HandleFunc("POST /tools/{name}/update", s.handleUpdate)
 	s.mux.HandleFunc("POST /tools/{name}/rollback", s.handleRollback)
+	s.mux.HandleFunc("POST /tools/{name}/cleanup", s.handleCleanup)
 	s.mux.HandleFunc("POST /self/update", s.handleSelfUpdate)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "time": time.Now().UTC()})
+}
+
+func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+	var req model.RegisterToolRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	toolCfg, err := s.manager.RegisterTool(req)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "is required") || strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "checksum mismatch") {
+			status = http.StatusBadRequest
+		}
+		if strings.Contains(err.Error(), "UNIQUE") {
+			status = http.StatusConflict
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "tool": toolCfg})
 }
 
 func (s *Server) handleListTools(w http.ResponseWriter, _ *http.Request) {
@@ -159,6 +183,19 @@ func (s *Server) handleRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": name, "backup_id": req.BackupID})
+}
+
+func (s *Server) handleCleanup(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := s.manager.CleanupTool(name); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": name})
 }
 
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request, fn func(string) error) {
