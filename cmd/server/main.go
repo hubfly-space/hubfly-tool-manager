@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -35,6 +36,12 @@ func main() {
 		GitBin:             *gitBin,
 		RestartOnBoot:      *restartOnBoot,
 		CommandTimeoutSecs: *timeoutSecs,
+	}
+
+	for _, dir := range []string{cfg.DataDir, cfg.BackupsDir, cfg.ToolsDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			logger.Fatalf("create runtime dir %s: %v", dir, err)
+		}
 	}
 
 	dbPath := filepath.Join(cfg.DataDir, "manager.sqlite")
