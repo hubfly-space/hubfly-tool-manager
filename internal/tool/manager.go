@@ -255,32 +255,82 @@ func (m *Manager) Update(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := m.ensureBinary(t); err != nil {
-		return err
-	}
+	return m.performToolUpdateLocked(t, t, "manual_update")
+}
 
-	backupDir, err := m.backupToolFiles(t)
+func (m *Manager) ConfigureAndUpdate(name string, req model.ConfigureToolRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	current, err := m.mustTool(name)
 	if err != nil {
 		return err
 	}
-	if err := m.downloadBinary(t.DownloadURL, t.BinaryPath, t.Checksum); err != nil {
+
+	next := current
+	changed := false
+	if req.DownloadURL != nil {
+		v := strings.TrimSpace(*req.DownloadURL)
+		if v == "" {
+			return errors.New("download_url cannot be empty")
+		}
+		if _, err := url.ParseRequestURI(v); err != nil {
+			return fmt.Errorf("invalid download_url: %w", err)
+		}
+		next.DownloadURL = v
+		next.BinaryPath = filepath.Join(next.ToolDir, binaryNameFromURL(v, next.Slug))
+		changed = true
+	}
+	if req.Checksum != nil {
+		next.Checksum = strings.TrimSpace(*req.Checksum)
+		changed = true
+	}
+	if req.Args != nil {
+		next.Args = cleanArgs(*req.Args)
+		changed = true
+	}
+	if req.VersionCommand != nil {
+		next.VersionCommand = cleanArgs(*req.VersionCommand)
+		changed = true
+	}
+
+	if !changed {
+		return errors.New("no configuration changes provided")
+	}
+	if err := m.store.UpdateTool(next); err != nil {
 		return err
 	}
-	if err := m.pm2.StartOrReload(t); err != nil {
+
+	return m.performToolUpdateLocked(next, current, "config_update")
+}
+
+func (m *Manager) performToolUpdateLocked(updateTool model.ToolConfig, backupSource model.ToolConfig, notePrefix string) error {
+	if err := m.ensureBinary(backupSource); err != nil {
+		return err
+	}
+
+	backupDir, err := m.backupToolFiles(backupSource)
+	if err != nil {
+		return err
+	}
+	if err := m.downloadBinary(updateTool.DownloadURL, updateTool.BinaryPath, updateTool.Checksum); err != nil {
+		return err
+	}
+	if err := m.pm2.StartOrReload(updateTool); err != nil {
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
 		return err
 	}
-	if err := m.trimBackups(t.Slug, backupRetention); err != nil {
-		m.logger.Printf("backup trim warning for %s: %v", t.Name, err)
+	if err := m.trimBackups(updateTool.Slug, backupRetention); err != nil {
+		m.logger.Printf("backup trim warning for %s: %v", updateTool.Name, err)
 	}
-	version, _ := m.GetToolVersion(t)
+	version, _ := m.GetToolVersion(updateTool)
 	_ = m.store.InsertVersion(model.VersionRecord{
-		ToolName:  t.Name,
+		ToolName:  updateTool.Name,
 		Version:   versionOrUnknown(version),
 		UpdatedAt: time.Now().UTC(),
-		Notes:     fmt.Sprintf("backup=%s", backupDir),
+		Notes:     fmt.Sprintf("%s backup=%s", notePrefix, backupDir),
 	})
 	return nil
 }

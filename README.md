@@ -124,6 +124,18 @@ curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/provision
 curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/update
 ```
 
+Update tool metadata and immediately update/restart tool:
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/configure-update \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "download_url":"https://example.com/releases/hubfly-scale-v2",
+    "checksum":"sha256:abc123",
+    "version_command":["{binary}","version"],
+    "args":["serve","--port","9011"]
+  }'
+```
+
 Backups/rollback:
 ```bash
 curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/backups
@@ -161,6 +173,7 @@ htm status "Hubfly Scale"
 htm version "Hubfly Scale"
 htm start "Hubfly Scale"
 htm update "Hubfly Scale"
+htm configure-update "Hubfly Scale" --url "https://example.com/releases/hubfly-scale-v2"
 htm backups "Hubfly Scale"
 htm rollback "Hubfly Scale"
 htm cleanup "Hubfly Scale"

@@ -46,6 +46,8 @@ func main() {
 		err = requireToolAndGet(baseURL, args, "/backups")
 	case "start", "stop", "restart", "provision", "update":
 		err = requireToolAndPost(baseURL, args, "/"+cmd, nil)
+	case "configure-update":
+		err = configureUpdate(baseURL, args)
 	case "rollback":
 		err = rollback(baseURL, args)
 	case "cleanup":
@@ -79,6 +81,7 @@ Usage:
   htm restart <tool>
   htm provision <tool>
   htm update <tool>
+  htm configure-update <tool> [--url <download_url>] [--checksum <sha256-or-empty>] [--version-cmd <comma-separated>] [--args <comma-separated>]
   htm rollback <tool> [backup_id]
   htm cleanup <tool>
   htm self-update
@@ -157,6 +160,41 @@ func selfUpdate(baseURL string, args []string) error {
 		return fmt.Errorf("self-update does not take arguments")
 	}
 	return doPost(baseURL, "/self/update", map[string]any{})
+}
+
+func configureUpdate(baseURL string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("missing tool name")
+	}
+	toolName := args[0]
+	fs := flag.NewFlagSet("configure-update", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	downloadURL := fs.String("url", "", "download url")
+	checksum := fs.String("checksum", "", "checksum (can be empty to clear)")
+	versionCmd := fs.String("version-cmd", "", "comma-separated version command")
+	toolArgs := fs.String("args", "", "comma-separated runtime args")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	body := map[string]any{}
+	if fs.Lookup("url").Value.String() != "" {
+		body["download_url"] = strings.TrimSpace(*downloadURL)
+	}
+	if fs.Lookup("checksum").Value.String() != "" || strings.Contains(strings.Join(args[1:], " "), "--checksum") {
+		body["checksum"] = strings.TrimSpace(*checksum)
+	}
+	if fs.Lookup("version-cmd").Value.String() != "" {
+		body["version_command"] = parseCSV(*versionCmd)
+	}
+	if fs.Lookup("args").Value.String() != "" {
+		body["args"] = parseCSV(*toolArgs)
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("provide at least one change (--url, --checksum, --version-cmd, --args)")
+	}
+
+	return doPost(baseURL, "/tools/"+url.PathEscape(toolName)+"/configure-update", body)
 }
 
 func rollback(baseURL string, args []string) error {

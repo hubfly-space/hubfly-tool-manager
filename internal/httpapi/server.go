@@ -46,6 +46,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /tools/{name}/restart", s.handleRestart)
 	s.mux.HandleFunc("POST /tools/{name}/provision", s.handleProvision)
 	s.mux.HandleFunc("POST /tools/{name}/update", s.handleUpdate)
+	s.mux.HandleFunc("POST /tools/{name}/configure-update", s.handleConfigureUpdate)
 	s.mux.HandleFunc("POST /tools/{name}/rollback", s.handleRollback)
 	s.mux.HandleFunc("POST /tools/{name}/cleanup", s.handleCleanup)
 	s.mux.HandleFunc("POST /self/update", s.handleSelfUpdate)
@@ -164,6 +165,26 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	s.handleAction(w, r, s.manager.Update)
+}
+
+func (s *Server) handleConfigureUpdate(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	var req model.ConfigureToolRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if err := s.manager.ConfigureAndUpdate(name, req); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "no configuration changes") || strings.Contains(err.Error(), "cannot be empty") {
+			status = http.StatusBadRequest
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": name, "updated": true})
 }
 
 type rollbackRequest struct {

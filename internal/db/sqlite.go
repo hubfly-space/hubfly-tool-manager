@@ -142,6 +142,34 @@ func (s *Store) DeleteTool(name string) error {
 	return nil
 }
 
+func (s *Store) UpdateTool(tool model.ToolConfig) error {
+	argsJSON, err := json.Marshal(tool.Args)
+	if err != nil {
+		return fmt.Errorf("marshal args: %w", err)
+	}
+	versionCmdJSON, err := json.Marshal(tool.VersionCommand)
+	if err != nil {
+		return fmt.Errorf("marshal version command: %w", err)
+	}
+
+	_, err = s.db.Exec(
+		`UPDATE tools
+         SET binary_path = ?, download_url = ?, checksum = ?, args_json = ?, version_command_json = ?, updated_at = ?
+         WHERE name = ?`,
+		tool.BinaryPath,
+		tool.DownloadURL,
+		tool.Checksum,
+		string(argsJSON),
+		string(versionCmdJSON),
+		time.Now().UTC().Format(time.RFC3339Nano),
+		tool.Name,
+	)
+	if err != nil {
+		return fmt.Errorf("update tool: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) DeleteVersions(name string) error {
 	_, err := s.db.Exec(`DELETE FROM tool_versions WHERE tool_name = ?`, name)
 	if err != nil {

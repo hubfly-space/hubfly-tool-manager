@@ -34,6 +34,13 @@ type RegisterToolRequest struct {
 	VersionCommand []string `json:"version_command,omitempty"`
 }
 
+type ConfigureToolRequest struct {
+	DownloadURL    *string   `json:"download_url,omitempty"`
+	Checksum       *string   `json:"checksum,omitempty"`
+	Args           *[]string `json:"args,omitempty"`
+	VersionCommand *[]string `json:"version_command,omitempty"`
+}
+
 type ToolRuntimeStatus struct {
 	Name      string    `json:"name"`
 	PM2Status string    `json:"pm2_status"`
