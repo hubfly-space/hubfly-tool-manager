@@ -211,22 +211,16 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request, fn func(st
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": name})
 }
 
-type selfUpdateRequest struct {
-	WorkDir       string   `json:"work_dir"`
-	UpdateCommand []string `json:"update_command"`
-}
-
 func (s *Server) handleSelfUpdate(w http.ResponseWriter, r *http.Request) {
-	var req selfUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+	if err := json.NewDecoder(r.Body).Decode(&map[string]any{}); err != nil && !errors.Is(err, io.EOF) {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
-	if err := s.manager.SelfUpdate(req.WorkDir, req.UpdateCommand); err != nil {
+	if err := s.manager.SelfUpdate(); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "self-update applied"})
 }
 
 func (s *Server) logMiddleware(next http.Handler) http.Handler {

@@ -78,8 +78,11 @@ install -m 0644 "$INSTALL_DIR/hubfly-tool-manager.service" "$SERVICE_FILE"
 systemctl daemon-reload
 systemctl enable --now hubfly-tool-manager
 
+ln -sf "$BIN_DIR/htm" /usr/local/bin/htm
+ln -sf "$BIN_DIR/hubfly-tool-manager" /usr/local/bin/hubfly-tool-manager
+
 systemctl --no-pager --full status hubfly-tool-manager || true
 
 echo "Installed."
 echo "Service: systemctl status hubfly-tool-manager"
-echo "CLI: $BIN_DIR/htm"
+echo "CLI: htm"

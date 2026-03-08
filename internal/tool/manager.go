@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -283,22 +285,57 @@ func (m *Manager) Update(name string) error {
 	return nil
 }
 
-func (m *Manager) SelfUpdate(workDir string, updateCommand []string) error {
+func (m *Manager) SelfUpdate() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if strings.TrimSpace(workDir) == "" {
-		return errors.New("self-update workDir is required")
+	repo := "hubfly-space/hubfly-tool-manager"
+	tag, err := m.latestReleaseTag(repo)
+	if err != nil {
+		return err
 	}
-	if _, err := os.Stat(filepath.Join(workDir, ".git")); err == nil {
-		if _, err := m.runner.Run(m.cfg.GitBin, "-C", workDir, "pull", "--ff-only"); err != nil {
-			return fmt.Errorf("self-update git pull failed: %w", err)
-		}
+
+	arch, err := releaseArch(runtime.GOARCH)
+	if err != nil {
+		return err
 	}
-	if len(updateCommand) > 0 {
-		if _, err := m.runRawInDir(workDir, updateCommand); err != nil {
-			return fmt.Errorf("self update command failed: %w", err)
-		}
+	asset := fmt.Sprintf("hubfly-tool-manager_linux_%s.tar.gz", arch)
+	baseURL := fmt.Sprintf("https://github.com/%s/releases/download/%s", repo, tag)
+
+	tmpDir, err := os.MkdirTemp("", "htm-self-update-*")
+	if err != nil {
+		return fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	assetPath := filepath.Join(tmpDir, asset)
+	checksumsPath := filepath.Join(tmpDir, "checksums.txt")
+	if err := downloadFile(baseURL+"/"+asset, assetPath); err != nil {
+		return err
+	}
+	if err := downloadFile(baseURL+"/checksums.txt", checksumsPath); err != nil {
+		return err
+	}
+	if err := verifyTarChecksum(assetPath, asset, checksumsPath); err != nil {
+		return err
+	}
+
+	if _, err := m.runner.Run("tar", "-C", "/hubfly-tool-manager", "-xzf", assetPath); err != nil {
+		return fmt.Errorf("extract release archive: %w", err)
+	}
+	_ = os.Chmod("/hubfly-tool-manager/bin/hubfly-tool-manager", 0o755)
+	_ = os.Chmod("/hubfly-tool-manager/bin/htm", 0o755)
+
+	if os.Geteuid() == 0 {
+		_ = os.Symlink("/hubfly-tool-manager/bin/htm", "/usr/local/bin/htm")
+		_ = os.Symlink("/hubfly-tool-manager/bin/hubfly-tool-manager", "/usr/local/bin/hubfly-tool-manager")
+		_, _ = m.runner.Run("ln", "-sf", "/hubfly-tool-manager/bin/htm", "/usr/local/bin/htm")
+		_, _ = m.runner.Run("ln", "-sf", "/hubfly-tool-manager/bin/hubfly-tool-manager", "/usr/local/bin/hubfly-tool-manager")
+	}
+
+	// Restart service when permitted; otherwise leave updated binaries for next restart.
+	if _, err := m.runner.Run("systemctl", "restart", "hubfly-tool-manager"); err != nil {
+		m.logger.Printf("self-update installed new binaries; service restart skipped: %v", err)
 	}
 	return nil
 }
@@ -598,6 +635,93 @@ func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error
 	}
 	if err := os.Chmod(targetPath, 0o755); err != nil {
 		return fmt.Errorf("chmod +x binary: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) latestReleaseTag(repo string) (string, error) {
+	u := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
+	resp, err := http.Get(u) // #nosec G107
+	if err != nil {
+		return "", fmt.Errorf("fetch latest release: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("latest release status %d", resp.StatusCode)
+	}
+	var payload struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", fmt.Errorf("decode latest release: %w", err)
+	}
+	if strings.TrimSpace(payload.TagName) == "" {
+		return "", errors.New("latest release tag is empty")
+	}
+	return strings.TrimSpace(payload.TagName), nil
+}
+
+func releaseArch(goarch string) (string, error) {
+	switch goarch {
+	case "amd64":
+		return "amd64", nil
+	case "arm64":
+		return "arm64", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture for self-update: %s", goarch)
+	}
+}
+
+func downloadFile(srcURL, dstPath string) error {
+	resp, err := http.Get(srcURL) // #nosec G107
+	if err != nil {
+		return fmt.Errorf("download file %s: %w", srcURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("download file status %d for %s", resp.StatusCode, srcURL)
+	}
+	f, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = io.Copy(f, resp.Body)
+	return err
+}
+
+func verifyTarChecksum(assetPath, assetName, checksumsPath string) error {
+	data, err := os.ReadFile(checksumsPath)
+	if err != nil {
+		return err
+	}
+	expected := ""
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 2 && parts[len(parts)-1] == assetName {
+			expected = parts[0]
+			break
+		}
+	}
+	if expected == "" {
+		return fmt.Errorf("checksum not found for %s", assetName)
+	}
+	f, err := os.Open(assetPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if actual != expected {
+		return fmt.Errorf("self-update checksum mismatch: expected=%s got=%s", expected, actual)
 	}
 	return nil
 }

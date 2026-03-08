@@ -34,6 +34,10 @@ Optional env overrides for installer:
 - `HUBFLY_REPO=owner/repo` (if your GitHub repo path is different)
 - `HUBFLY_VERSION=vX.Y.Z` (install a specific release instead of latest)
 
+Installer also exposes binaries globally:
+- `/usr/local/bin/htm`
+- `/usr/local/bin/hubfly-tool-manager`
+
 ## Runtime Configuration
 Use CLI flags or env vars for manager runtime only.
 
@@ -134,9 +138,7 @@ curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/cleanup
 
 Self update:
 ```bash
-curl -s -X POST http://127.0.0.1:10000/self/update \
-  -H 'Content-Type: application/json' \
-  -d '{"work_dir":"/opt/hubfly-tool-manager","update_command":["go","build","./cmd/server"]}'
+curl -s -X POST http://127.0.0.1:10000/self/update
 ```
 
 ## CLI
@@ -153,6 +155,7 @@ htm update "Hubfly Scale"
 htm backups "Hubfly Scale"
 htm rollback "Hubfly Scale"
 htm cleanup "Hubfly Scale"
+htm self-update
 ```
 
 ## Tool Folder Layout

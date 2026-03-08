@@ -81,7 +81,7 @@ Usage:
   htm update <tool>
   htm rollback <tool> [backup_id]
   htm cleanup <tool>
-  htm self-update <work_dir> [command...]
+  htm self-update
 
 Env:
   HTM_SERVER   default: http://127.0.0.1:10000`)
@@ -153,14 +153,10 @@ func history(baseURL string, args []string) error {
 }
 
 func selfUpdate(baseURL string, args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("missing work_dir")
+	if len(args) > 0 {
+		return fmt.Errorf("self-update does not take arguments")
 	}
-	body := map[string]any{"work_dir": args[0]}
-	if len(args) > 1 {
-		body["update_command"] = args[1:]
-	}
-	return doPost(baseURL, "/self/update", body)
+	return doPost(baseURL, "/self/update", map[string]any{})
 }
 
 func rollback(baseURL string, args []string) error {

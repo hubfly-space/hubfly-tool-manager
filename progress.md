@@ -16,3 +16,6 @@
   - GitHub workflow for Linux (`amd64`, `arm64`) release artifacts + checksums
   - one-line installer script for `/hubfly-tool-manager`
   - systemd service with `Restart=always` (manager not run under PM2)
+- Improved operations:
+  - installer now links `htm` and `hubfly-tool-manager` into `/usr/local/bin`
+  - self-update no longer requires working directory; it auto-updates from GitHub releases
