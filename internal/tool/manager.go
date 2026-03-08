@@ -333,9 +333,23 @@ func (m *Manager) SelfUpdate() error {
 		_, _ = m.runner.Run("ln", "-sf", "/hubfly-tool-manager/bin/hubfly-tool-manager", "/usr/local/bin/hubfly-tool-manager")
 	}
 
-	// Restart service when permitted; otherwise leave updated binaries for next restart.
-	if _, err := m.runner.Run("systemctl", "restart", "hubfly-tool-manager"); err != nil {
-		m.logger.Printf("self-update installed new binaries; service restart skipped: %v", err)
+	if err := m.runSystemctlWithSudo("daemon-reload"); err != nil {
+		return fmt.Errorf("self-update daemon-reload failed: %w", err)
+	}
+	if err := m.runSystemctlWithSudo("restart", "hubfly-tool-manager"); err != nil {
+		return fmt.Errorf("self-update restart failed: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) runSystemctlWithSudo(args ...string) error {
+	sudoArgs := append([]string{"systemctl"}, args...)
+	if _, err := m.runner.Run("sudo", sudoArgs...); err == nil {
+		return nil
+	}
+	_, err := m.runner.Run("systemctl", args...)
+	if err != nil {
+		return err
 	}
 	return nil
 }

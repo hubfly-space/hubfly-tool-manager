@@ -142,6 +142,7 @@ Self update:
 ```bash
 curl -s -X POST http://127.0.0.1:10000/self/update
 ```
+Self-update runs `systemctl daemon-reload` and `systemctl restart hubfly-tool-manager` (via `sudo` when available).
 
 ## CLI
 Default server: `HTM_SERVER=http://127.0.0.1:10000`
