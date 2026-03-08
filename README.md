@@ -37,7 +37,7 @@ Optional env overrides for installer:
 Installer also exposes binaries globally:
 - `/usr/local/bin/htm`
 - `/usr/local/bin/hubfly-tool-manager`
-- Installer also ensures `pm2` exists (installs Node/npm + pm2 on apt/dnf/yum/pacman hosts when missing)
+- Installer performs strict preflight checks for `node`, `npm`, and `pm2`; it stops with an error if any are missing
 
 ## Runtime Configuration
 Use CLI flags or env vars for manager runtime only.

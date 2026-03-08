@@ -56,43 +56,13 @@ for cmd in curl tar sha256sum systemctl; do
   command -v "$cmd" >/dev/null 2>&1 || fail "$cmd is required"
 done
 
-ensure_node_npm() {
-  if command -v npm >/dev/null 2>&1; then
-    return 0
-  fi
-
-  log "npm not found. Attempting to install Node.js + npm."
-  if command -v apt-get >/dev/null 2>&1; then
-    run "Updating apt index" apt-get update
-    run "Installing nodejs and npm via apt" apt-get install -y nodejs npm
-    return 0
-  fi
-  if command -v dnf >/dev/null 2>&1; then
-    run "Installing nodejs and npm via dnf" dnf install -y nodejs npm
-    return 0
-  fi
-  if command -v yum >/dev/null 2>&1; then
-    run "Installing nodejs and npm via yum" yum install -y nodejs npm
-    return 0
-  fi
-  if command -v pacman >/dev/null 2>&1; then
-    run "Installing nodejs and npm via pacman" pacman -Sy --noconfirm nodejs npm
-    return 0
-  fi
-
-  fail "npm is missing and no supported package manager (apt/dnf/yum/pacman) was found."
-}
-
-ensure_pm2() {
-  if command -v pm2 >/dev/null 2>&1; then
-    log "pm2 detected: $(command -v pm2)"
-    return 0
-  fi
-
-  ensure_node_npm
-  run "Installing pm2 globally via npm" npm install -g pm2
-  command -v pm2 >/dev/null 2>&1 || fail "pm2 installation failed"
-  log "pm2 installed: $(command -v pm2)"
+ensure_pm2_prereqs() {
+  command -v node >/dev/null 2>&1 || fail "node is required but not installed. Install Node.js first."
+  command -v npm >/dev/null 2>&1 || fail "npm is required but not installed. Install npm first."
+  command -v pm2 >/dev/null 2>&1 || fail "pm2 is required but not installed. Install pm2 first (example: npm install -g pm2)."
+  log "node detected: $(command -v node)"
+  log "npm detected: $(command -v npm)"
+  log "pm2 detected: $(command -v pm2)"
 }
 
 TAG="${HUBFLY_VERSION:-}"
@@ -145,11 +115,11 @@ else
   log "No previous installation found. Fresh install."
 fi
 
+ensure_pm2_prereqs
 run "Creating install directories" mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/tools"
 run "Extracting release archive" tar -C "$STAGE_DIR" -xzf "$TMP_DIR/$ASSET"
 run "Installing release files" cp -a "$STAGE_DIR"/. "$INSTALL_DIR"/
 run "Setting executable permissions" chmod +x "$BIN_DIR/hubfly-tool-manager" "$BIN_DIR/htm"
-ensure_pm2
 
 for d in data backups tools; do
   if [[ -d "$PRESERVE_DIR/$d" ]]; then
