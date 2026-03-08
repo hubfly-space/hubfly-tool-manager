@@ -14,6 +14,7 @@ import (
 
 	"hubfly-tool-manager/internal/model"
 	"hubfly-tool-manager/internal/tool"
+	"hubfly-tool-manager/internal/version"
 )
 
 type Server struct {
@@ -51,7 +52,11 @@ func (s *Server) routes() {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "time": time.Now().UTC()})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"time":    time.Now().UTC(),
+		"version": version.ManagerVersion,
+	})
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {

@@ -88,6 +88,7 @@ Health:
 ```bash
 curl -s http://127.0.0.1:10000/health
 ```
+Response includes manager `version` (in release builds this is injected from the Git tag).
 
 Register tool:
 ```bash
