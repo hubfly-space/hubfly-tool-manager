@@ -2,6 +2,7 @@
 Description=Hubfly Tool Manager
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -16,8 +17,6 @@ ExecStart=/hubfly-tool-manager/bin/hubfly-tool-manager \
   --tools-dir /hubfly-tool-manager/tools
 Restart=always
 RestartSec=3
-StartLimitIntervalSec=0
-NoNewPrivileges=true
 LimitNOFILE=65536
 
 [Install]

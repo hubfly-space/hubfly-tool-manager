@@ -42,6 +42,7 @@ Installer also exposes binaries globally:
   - `systemctl daemon-reload`
   - `systemctl restart hubfly-tool-manager`
   Required for self-update to complete.
+- Installer normalizes the service file for self-update compatibility (`StartLimitIntervalSec` in `[Unit]`, no `NoNewPrivileges`).
 
 ## Runtime Configuration
 Use CLI flags or env vars for manager runtime only.

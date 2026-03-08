@@ -27,6 +27,27 @@ run() {
   "$@" 2>&1 | tee -a "$LOG_FILE"
 }
 
+normalize_service_file() {
+  local file="$1"
+  [[ -f "$file" ]] || fail "Service file not found: $file"
+
+  # Ensure restart rate limit key is in [Unit], not [Service].
+  if ! awk 'BEGIN{in_unit=0;ok=0} /^\[Unit\]/{in_unit=1;next} /^\[/{in_unit=0} in_unit && /^StartLimitIntervalSec=0$/{ok=1} END{exit ok?0:1}' "$file"; then
+    awk '
+      BEGIN {inserted=0}
+      /^\[Unit\]$/ {print; in_unit=1; next}
+      /^\[/ && $0 != "[Unit]" { if (in_unit && !inserted) { print "StartLimitIntervalSec=0"; inserted=1 } in_unit=0 }
+      /^StartLimitIntervalSec=0$/ { next }
+      { print }
+      END { if (in_unit && !inserted) print "StartLimitIntervalSec=0" }
+    ' "$file" > "${file}.tmp"
+    mv "${file}.tmp" "$file"
+  fi
+
+  # Self-update needs controlled privilege escalation; remove NoNewPrivileges if present.
+  sed -i '/^NoNewPrivileges=/d' "$file"
+}
+
 fail() {
   local msg="$1"
   log "ERROR: $msg"
@@ -121,6 +142,7 @@ run "Creating install directories" mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$INSTALL_
 run "Extracting release archive" tar -C "$STAGE_DIR" -xzf "$TMP_DIR/$ASSET"
 run "Installing release files" cp -a "$STAGE_DIR"/. "$INSTALL_DIR"/
 run "Setting executable permissions" chmod +x "$BIN_DIR/hubfly-tool-manager" "$BIN_DIR/htm"
+run "Normalizing systemd service file for self-update compatibility" normalize_service_file "$INSTALL_DIR/hubfly-tool-manager.service"
 
 for d in data backups tools; do
   if [[ -d "$PRESERVE_DIR/$d" ]]; then
