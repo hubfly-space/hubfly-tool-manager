@@ -142,7 +142,7 @@ Self update:
 ```bash
 curl -s -X POST http://127.0.0.1:10000/self/update
 ```
-Self-update is root-only and runs `systemctl daemon-reload` then `systemctl restart hubfly-tool-manager`.
+Self-update runs `systemctl daemon-reload` then `systemctl restart hubfly-tool-manager` with direct and `sudo` fallback attempts.
 
 ## CLI
 Default server: `HTM_SERVER=http://127.0.0.1:10000`

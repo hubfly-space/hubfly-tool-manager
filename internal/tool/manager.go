@@ -289,10 +289,6 @@ func (m *Manager) SelfUpdate() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if os.Geteuid() != 0 {
-		return errors.New("self-update requires root privileges; run as root (or with sudo)")
-	}
-
 	repo := "hubfly-space/hubfly-tool-manager"
 	tag, err := m.latestReleaseTag(repo)
 	if err != nil {
@@ -347,11 +343,18 @@ func (m *Manager) SelfUpdate() error {
 }
 
 func (m *Manager) runSystemctlWithSudo(args ...string) error {
-	_, err := m.runner.Run("systemctl", args...)
-	if err != nil {
-		return err
+	if _, err := m.runner.Run("systemctl", args...); err == nil {
+		return nil
 	}
-	return nil
+	sudoArgs := append([]string{"-n", "systemctl"}, args...)
+	if _, err := m.runner.Run("sudo", sudoArgs...); err == nil {
+		return nil
+	}
+	sudoArgs = append([]string{"systemctl"}, args...)
+	if _, err := m.runner.Run("sudo", sudoArgs...); err == nil {
+		return nil
+	}
+	return fmt.Errorf("failed to run systemctl %v (direct and sudo attempts failed)", args)
 }
 
 func (m *Manager) History(name string, limit int) ([]model.VersionRecord, error) {
