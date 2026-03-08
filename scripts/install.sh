@@ -6,6 +6,7 @@ INSTALL_DIR="/hubfly-tool-manager"
 BIN_DIR="$INSTALL_DIR/bin"
 SERVICE_NAME="hubfly-tool-manager"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+SUDOERS_FILE="/etc/sudoers.d/hubfly-tool-manager"
 ARCH_RAW="$(uname -m)"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_DIR_DEFAULT="/tmp"
@@ -131,6 +132,14 @@ if ! id -u hubfly >/dev/null 2>&1; then
   run "Creating system user 'hubfly'" useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin hubfly
 fi
 run "Applying ownership" chown -R hubfly:hubfly "$INSTALL_DIR"
+
+# Allow service user to reload/restart only this service during self-update.
+run "Configuring sudoers for self-update systemctl commands" bash -c "cat > '$SUDOERS_FILE' <<'SUDOEOF'
+Defaults:hubfly !requiretty
+hubfly ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload, /usr/bin/systemctl restart hubfly-tool-manager, /bin/systemctl daemon-reload, /bin/systemctl restart hubfly-tool-manager
+SUDOEOF"
+run "Validating sudoers file" visudo -cf "$SUDOERS_FILE"
+run "Setting sudoers permissions" chmod 0440 "$SUDOERS_FILE"
 
 run "Installing systemd service file" install -m 0644 "$INSTALL_DIR/hubfly-tool-manager.service" "$SERVICE_FILE"
 run "Reloading systemd" systemctl daemon-reload

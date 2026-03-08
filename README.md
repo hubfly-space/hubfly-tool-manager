@@ -38,6 +38,10 @@ Installer also exposes binaries globally:
 - `/usr/local/bin/htm`
 - `/usr/local/bin/hubfly-tool-manager`
 - Installer performs strict preflight checks for `node`, `npm`, and `pm2`; it stops with an error if any are missing
+- Installer adds `/etc/sudoers.d/hubfly-tool-manager` so service user `hubfly` can run:
+  - `systemctl daemon-reload`
+  - `systemctl restart hubfly-tool-manager`
+  Required for self-update to complete.
 
 ## Runtime Configuration
 Use CLI flags or env vars for manager runtime only.
