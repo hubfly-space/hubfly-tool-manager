@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=hubfly
 Group=hubfly
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WorkingDirectory=/hubfly-tool-manager
 ExecStart=/hubfly-tool-manager/bin/hubfly-tool-manager \
   --listen-addr :10000 \
