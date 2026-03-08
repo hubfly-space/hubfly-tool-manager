@@ -221,11 +221,19 @@ func (s *Server) handleSelfUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
-	if err := s.manager.SelfUpdate(); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+
+	// Self-update can restart this same service; run it asynchronously so client gets a response first.
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "message": "self-update accepted"})
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "self-update applied"})
+
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		if err := s.manager.SelfUpdate(); err != nil {
+			s.logger.Printf("self-update failed: %v", err)
+		}
+	}()
 }
 
 func (s *Server) logMiddleware(next http.Handler) http.Handler {
