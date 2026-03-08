@@ -1,0 +1,23 @@
+[Unit]
+Description=Hubfly Tool Manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hubfly
+Group=hubfly
+WorkingDirectory=/hubfly-tool-manager
+ExecStart=/hubfly-tool-manager/bin/hubfly-tool-manager \
+  --listen-addr :10000 \
+  --data-dir /hubfly-tool-manager/data \
+  --backups-dir /hubfly-tool-manager/backups \
+  --tools-dir /hubfly-tool-manager/tools
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=0
+NoNewPrivileges=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

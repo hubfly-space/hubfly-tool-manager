@@ -12,3 +12,7 @@
   - Added binary download flow with `chmod +x`
   - Added optional SHA256 checksum validation (skipped when not provided)
   - Added `POST /tools/{name}/cleanup` to remove one tool safely
+- Added Linux packaging and release automation:
+  - GitHub workflow for Linux (`amd64`, `arm64`) release artifacts + checksums
+  - one-line installer script for `/hubfly-tool-manager`
+  - systemd service with `Restart=always` (manager not run under PM2)

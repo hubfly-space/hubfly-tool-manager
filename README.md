@@ -5,7 +5,7 @@ A stable PM2-based manager for binary tools.
 Now fully database-driven:
 - No tool definitions in `config.json`
 - Tools are registered via API/CLI and stored in SQLite
-- Each tool gets its own folder: `tools/<name-with-spaces-replaced-by-dash>`
+- Each tool gets its own folder: `/hubfly-tool-manager/tools/<name-with-spaces-replaced-by-dash>`
 
 ## Features
 - Register new tools with:
@@ -22,15 +22,26 @@ Now fully database-driven:
 - Cleanup endpoint for one tool only (tool dir + backups + db rows)
 - SQLite history of tool versions/updates
 - Manager self-update endpoint (not stored in tool version history)
+- Manager runs as a `systemd` service (not PM2) with automatic restart
+
+## Quick Install (One Line, Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hubfly-tools/hubfly-tool-manager/main/scripts/install.sh | sudo bash
+```
+
+Optional env overrides for installer:
+- `HUBFLY_REPO=owner/repo` (if your GitHub repo path is different)
+- `HUBFLY_VERSION=vX.Y.Z` (install a specific release instead of latest)
 
 ## Runtime Configuration
 Use CLI flags or env vars for manager runtime only.
 
 Flags:
 - `--listen-addr` default `:10000`
-- `--data-dir` default `./data`
-- `--backups-dir` default `./backups`
-- `--tools-dir` default `./tools`
+- `--data-dir` default `/hubfly-tool-manager/data`
+- `--backups-dir` default `/hubfly-tool-manager/backups`
+- `--tools-dir` default `/hubfly-tool-manager/tools`
 - `--pm2-bin` default `pm2`
 - `--git-bin` default `git`
 - `--command-timeout-secs` default `90`
@@ -57,6 +68,12 @@ go build -o bin/htm ./cmd/htm
 
 ```bash
 ./bin/hubfly-tool-manager
+```
+
+Production (recommended):
+```bash
+sudo systemctl enable --now hubfly-tool-manager
+sudo systemctl status hubfly-tool-manager
 ```
 
 ## HTTP API
@@ -142,7 +159,7 @@ htm cleanup "Hubfly Scale"
 For `name = "Hubfly Scale"`, tool directory is:
 
 ```text
-./tools/hubfly-scale/
+/hubfly-tool-manager/tools/hubfly-scale/
 ```
 
 Expected managed files in that folder:
@@ -152,3 +169,11 @@ Expected managed files in that folder:
 - optional `configs/`
 
 Backup captures these files if present.
+
+## GitHub Release Workflow
+
+The repository includes [release-linux.yml](/home/bonheur/Desktop/Projects/hubfly-tools/hubfly-tool-manager/.github/workflows/release-linux.yml), which on each `v*` tag:
+- builds Linux binaries (`amd64`, `arm64`)
+- creates tarballs
+- generates `checksums.txt`
+- publishes GitHub Release assets

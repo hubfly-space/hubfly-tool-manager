@@ -1,0 +1,71 @@
+name: Release Linux
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Linux (${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binaries
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist/pkg-${GOARCH}/bin
+          go build -trimpath -ldflags "-s -w" -o dist/pkg-${GOARCH}/bin/hubfly-tool-manager ./cmd/server
+          go build -trimpath -ldflags "-s -w" -o dist/pkg-${GOARCH}/bin/htm ./cmd/htm
+          cp packaging/hubfly-tool-manager.service dist/pkg-${GOARCH}/hubfly-tool-manager.service
+          tar -C dist/pkg-${GOARCH} -czf dist/hubfly-tool-manager_linux_${GOARCH}.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${{ matrix.goarch }}
+          path: dist/hubfly-tool-manager_linux_${{ matrix.goarch }}.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find dist -type f -name '*.tar.gz' -exec cp {} release/ \;
+          (cd release && sha256sum *.tar.gz > checksums.txt)
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.tar.gz
+            release/checksums.txt
+          generate_release_notes: true

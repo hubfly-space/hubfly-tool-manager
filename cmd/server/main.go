@@ -16,9 +16,9 @@ import (
 
 func main() {
 	listenAddr := flag.String("listen-addr", envOrDefault("HTM_LISTEN_ADDR", ":10000"), "http listen address")
-	dataDir := flag.String("data-dir", envOrDefault("HTM_DATA_DIR", "./data"), "directory for sqlite database")
-	backupsDir := flag.String("backups-dir", envOrDefault("HTM_BACKUPS_DIR", "./backups"), "directory for backups")
-	toolsDir := flag.String("tools-dir", envOrDefault("HTM_TOOLS_DIR", "./tools"), "directory holding per-tool folders")
+	dataDir := flag.String("data-dir", envOrDefault("HTM_DATA_DIR", "/hubfly-tool-manager/data"), "directory for sqlite database")
+	backupsDir := flag.String("backups-dir", envOrDefault("HTM_BACKUPS_DIR", "/hubfly-tool-manager/backups"), "directory for backups")
+	toolsDir := flag.String("tools-dir", envOrDefault("HTM_TOOLS_DIR", "/hubfly-tool-manager/tools"), "directory holding per-tool folders")
 	pm2Bin := flag.String("pm2-bin", envOrDefault("HTM_PM2_BIN", "pm2"), "pm2 binary")
 	gitBin := flag.String("git-bin", envOrDefault("HTM_GIT_BIN", "git"), "git binary")
 	timeoutSecs := flag.Int("command-timeout-secs", envIntOrDefault("HTM_COMMAND_TIMEOUT_SECS", 90), "command timeout in seconds")

@@ -10,6 +10,7 @@
 - [x] Register endpoint for new tools with URL/checksum/version command/args
 - [x] Per-tool folder convention and binary chmod+x handling
 - [x] Per-tool cleanup endpoint (tool dir + backups + db)
+- [x] Linux release workflow and one-line installer with systemd auto-restart
 
 ## Next hardening
 - [ ] Add auth/token protection for HTTP endpoints
