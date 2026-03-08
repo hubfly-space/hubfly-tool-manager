@@ -1,88 +1,144 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $EUID -ne 0 ]]; then
-  echo "Run as root (use: sudo bash install.sh)"
-  exit 1
-fi
-
 REPO="${HUBFLY_REPO:-hubfly-space/hubfly-tool-manager}"
 INSTALL_DIR="/hubfly-tool-manager"
 BIN_DIR="$INSTALL_DIR/bin"
-SERVICE_FILE="/etc/systemd/system/hubfly-tool-manager.service"
+SERVICE_NAME="hubfly-tool-manager"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 ARCH_RAW="$(uname -m)"
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+LOG_DIR_DEFAULT="/tmp"
+LOG_FILE="$LOG_DIR_DEFAULT/${SERVICE_NAME}-install-${RUN_ID}.log"
+
+mkdir -p "$LOG_DIR_DEFAULT"
+touch "$LOG_FILE"
+
+log() {
+  local msg="$1"
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $msg" | tee -a "$LOG_FILE"
+}
+
+run() {
+  local msg="$1"
+  shift
+  log "$msg"
+  "$@" 2>&1 | tee -a "$LOG_FILE"
+}
+
+fail() {
+  local msg="$1"
+  log "ERROR: $msg"
+  log "Install log: $LOG_FILE"
+  exit 1
+}
+
+cleanup_on_error() {
+  local code=$?
+  if [[ $code -ne 0 ]]; then
+    log "Installation failed with exit code $code"
+    log "Install log: $LOG_FILE"
+  fi
+}
+trap cleanup_on_error EXIT
+
+if [[ $EUID -ne 0 ]]; then
+  fail "Run as root (use: sudo bash install.sh)"
+fi
 
 case "$ARCH_RAW" in
   x86_64|amd64) ARCH="amd64" ;;
   aarch64|arm64) ARCH="arm64" ;;
-  *)
-    echo "Unsupported architecture: $ARCH_RAW"
-    exit 1
-    ;;
+  *) fail "Unsupported architecture: $ARCH_RAW" ;;
 esac
 
-if ! command -v curl >/dev/null 2>&1; then
-  echo "curl is required"
-  exit 1
-fi
-if ! command -v tar >/dev/null 2>&1; then
-  echo "tar is required"
-  exit 1
-fi
-if ! command -v sha256sum >/dev/null 2>&1; then
-  echo "sha256sum is required"
-  exit 1
-fi
+for cmd in curl tar sha256sum systemctl; do
+  command -v "$cmd" >/dev/null 2>&1 || fail "$cmd is required"
+done
 
 TAG="${HUBFLY_VERSION:-}"
 if [[ -z "$TAG" ]]; then
+  log "Resolving latest release tag from GitHub"
   TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
 fi
-
-if [[ -z "$TAG" ]]; then
-  echo "Failed to resolve release tag. Set HUBFLY_VERSION manually."
-  exit 1
-fi
+[[ -n "$TAG" ]] || fail "Failed to resolve release tag. Set HUBFLY_VERSION manually."
 
 ASSET="hubfly-tool-manager_linux_${ARCH}.tar.gz"
 BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+STAGE_DIR="$TMP_DIR/stage"
+PRESERVE_DIR="$TMP_DIR/preserve"
+mkdir -p "$STAGE_DIR" "$PRESERVE_DIR"
 
-echo "Installing $REPO $TAG for $ARCH into $INSTALL_DIR"
+log "Preparing install for $REPO $TAG ($ARCH)"
+log "Log file: $LOG_FILE"
 
-curl -fL "$BASE_URL/$ASSET" -o "$TMP_DIR/$ASSET"
-curl -fL "$BASE_URL/checksums.txt" -o "$TMP_DIR/checksums.txt"
+run "Downloading release asset" curl -fL "$BASE_URL/$ASSET" -o "$TMP_DIR/$ASSET"
+run "Downloading checksums" curl -fL "$BASE_URL/checksums.txt" -o "$TMP_DIR/checksums.txt"
 
 EXPECTED="$(grep "  $ASSET$" "$TMP_DIR/checksums.txt" | awk '{print $1}')"
-if [[ -z "$EXPECTED" ]]; then
-  echo "Could not find checksum for $ASSET"
-  exit 1
-fi
+[[ -n "$EXPECTED" ]] || fail "Could not find checksum for $ASSET"
 ACTUAL="$(sha256sum "$TMP_DIR/$ASSET" | awk '{print $1}')"
-if [[ "$EXPECTED" != "$ACTUAL" ]]; then
-  echo "Checksum mismatch for $ASSET"
-  exit 1
+[[ "$EXPECTED" == "$ACTUAL" ]] || fail "Checksum mismatch for $ASSET"
+
+# Smart re-run cleanup:
+# - stop existing service cleanly
+# - preserve runtime state (data, backups, tools)
+# - remove old app files before reinstall
+if [[ -d "$INSTALL_DIR" || -f "$SERVICE_FILE" ]]; then
+  log "Existing installation detected. Starting smart cleanup."
+
+  if systemctl list-unit-files | grep -q "^${SERVICE_NAME}\.service"; then
+    run "Stopping existing service" systemctl stop "$SERVICE_NAME" || true
+    run "Disabling existing service" systemctl disable "$SERVICE_NAME" || true
+  fi
+
+  for d in data backups tools; do
+    if [[ -d "$INSTALL_DIR/$d" ]]; then
+      run "Preserving $d directory" mv "$INSTALL_DIR/$d" "$PRESERVE_DIR/$d"
+    fi
+  done
+
+  if [[ -d "$INSTALL_DIR" ]]; then
+    run "Removing old application files" find "$INSTALL_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  fi
+else
+  log "No previous installation found. Fresh install."
 fi
 
-mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/tools"
-tar -C "$INSTALL_DIR" -xzf "$TMP_DIR/$ASSET"
-chmod +x "$BIN_DIR/hubfly-tool-manager" "$BIN_DIR/htm"
+run "Creating install directories" mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/tools"
+run "Extracting release archive" tar -C "$STAGE_DIR" -xzf "$TMP_DIR/$ASSET"
+run "Installing release files" cp -a "$STAGE_DIR"/. "$INSTALL_DIR"/
+run "Setting executable permissions" chmod +x "$BIN_DIR/hubfly-tool-manager" "$BIN_DIR/htm"
+
+for d in data backups tools; do
+  if [[ -d "$PRESERVE_DIR/$d" ]]; then
+    run "Restoring preserved $d directory" mv "$PRESERVE_DIR/$d" "$INSTALL_DIR/$d"
+  fi
+done
 
 if ! id -u hubfly >/dev/null 2>&1; then
-  useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin hubfly
+  run "Creating system user 'hubfly'" useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin hubfly
 fi
-chown -R hubfly:hubfly "$INSTALL_DIR"
+run "Applying ownership" chown -R hubfly:hubfly "$INSTALL_DIR"
 
-install -m 0644 "$INSTALL_DIR/hubfly-tool-manager.service" "$SERVICE_FILE"
-systemctl daemon-reload
-systemctl enable --now hubfly-tool-manager
+run "Installing systemd service file" install -m 0644 "$INSTALL_DIR/hubfly-tool-manager.service" "$SERVICE_FILE"
+run "Reloading systemd" systemctl daemon-reload
+run "Enabling service" systemctl enable "$SERVICE_NAME"
+run "Starting service" systemctl restart "$SERVICE_NAME"
 
-ln -sf "$BIN_DIR/htm" /usr/local/bin/htm
-ln -sf "$BIN_DIR/hubfly-tool-manager" /usr/local/bin/hubfly-tool-manager
+run "Linking CLI binaries globally" ln -sf "$BIN_DIR/htm" /usr/local/bin/htm
+run "Linking server binary globally" ln -sf "$BIN_DIR/hubfly-tool-manager" /usr/local/bin/hubfly-tool-manager
 
-systemctl --no-pager --full status hubfly-tool-manager || true
+mkdir -p "$INSTALL_DIR/logs"
+run "Archiving installer log" cp "$LOG_FILE" "$INSTALL_DIR/logs/install-${RUN_ID}.log"
 
-echo "Installed."
-echo "Service: systemctl status hubfly-tool-manager"
-echo "CLI: htm"
+run "Service status" systemctl --no-pager --full status "$SERVICE_NAME" || true
+
+log "Installation completed successfully"
+log "Service: systemctl status $SERVICE_NAME"
+log "CLI: htm"
+log "Install log: $INSTALL_DIR/logs/install-${RUN_ID}.log"
+
+rm -rf "$TMP_DIR"
+trap - EXIT
