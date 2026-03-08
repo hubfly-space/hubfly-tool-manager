@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,22 +19,24 @@ import (
 )
 
 type Server struct {
-	manager *tool.Manager
-	logger  *log.Logger
-	mux     *http.ServeMux
+	manager   *tool.Manager
+	logger    *log.Logger
+	mux       *http.ServeMux
+	tokenFile string
 }
 
-func New(manager *tool.Manager, logger *log.Logger) *Server {
-	s := &Server{manager: manager, logger: logger, mux: http.NewServeMux()}
+func New(manager *tool.Manager, logger *log.Logger, tokenFile string) *Server {
+	s := &Server{manager: manager, logger: logger, mux: http.NewServeMux(), tokenFile: tokenFile}
 	s.routes()
 	return s
 }
 
 func (s *Server) Handler() http.Handler {
-	return s.recoverMiddleware(s.logMiddleware(s.mux))
+	return s.recoverMiddleware(s.logMiddleware(s.authMiddleware(s.mux)))
 }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("GET /version", s.handleManagerVersion)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("POST /tools/register", s.handleRegister)
 	s.mux.HandleFunc("GET /tools", s.handleListTools)
@@ -52,12 +55,64 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /self/update", s.handleSelfUpdate)
 }
 
+func (s *Server) handleManagerVersion(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"version": version.ManagerVersion})
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"time":    time.Now().UTC(),
 		"version": version.ManagerVersion,
 	})
+}
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Single public endpoint by design.
+		if r.Method == http.MethodGet && r.URL.Path == "/version" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		expected, err := s.loadToken()
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "security token not initialized; run `htm init`")
+			return
+		}
+		got := strings.TrimSpace(extractToken(r))
+		if got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+			writeError(w, http.StatusUnauthorized, "invalid or missing security token")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) loadToken() (string, error) {
+	if strings.TrimSpace(s.tokenFile) == "" {
+		return "", errors.New("empty token file path")
+	}
+	b, err := os.ReadFile(s.tokenFile)
+	if err != nil {
+		return "", err
+	}
+	token := strings.TrimSpace(string(b))
+	if token == "" {
+		return "", errors.New("empty token")
+	}
+	return token, nil
+}
+
+func extractToken(r *http.Request) string {
+	auth := strings.TrimSpace(r.Header.Get("Authorization"))
+	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
+		return strings.TrimSpace(auth[7:])
+	}
+	if v := strings.TrimSpace(r.Header.Get("X-HTM-Token")); v != "" {
+		return v
+	}
+	return ""
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {

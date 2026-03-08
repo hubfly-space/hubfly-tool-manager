@@ -23,6 +23,7 @@ Now fully database-driven:
 - SQLite history of tool versions/updates
 - Manager self-update endpoint (not stored in tool version history)
 - Manager runs as a `systemd` service (not PM2) with automatic restart
+- Token-based API security (all endpoints protected except manager version check)
 
 ## Quick Install (One Line, Linux)
 
@@ -52,6 +53,7 @@ Flags:
 - `--data-dir` default `/hubfly-tool-manager/data`
 - `--backups-dir` default `/hubfly-tool-manager/backups`
 - `--tools-dir` default `/hubfly-tool-manager/tools`
+- `--token-file` default `/hubfly-tool-manager/.token`
 - `--pm2-bin` default `pm2`
 - `--git-bin` default `git`
 - `--command-timeout-secs` default `90`
@@ -62,6 +64,7 @@ Equivalent env vars:
 - `HTM_DATA_DIR`
 - `HTM_BACKUPS_DIR`
 - `HTM_TOOLS_DIR`
+- `HTM_TOKEN_FILE`
 - `HTM_PM2_BIN`
 - `HTM_GIT_BIN`
 - `HTM_COMMAND_TIMEOUT_SECS`
@@ -89,15 +92,31 @@ sudo systemctl status hubfly-tool-manager
 ## HTTP API
 Default base URL: `http://127.0.0.1:10000`
 
+Public version check (no token required):
+```bash
+curl -s http://127.0.0.1:10000/version
+```
+
+Initialize token locally (overwrites existing token):
+```bash
+htm init
+# or
+htm init 'YOUR_SECRET_TOKEN'
+```
+
+After initialization, all other endpoints require token via `Authorization: Bearer <TOKEN>` (or `X-HTM-Token`).
+
 Health:
 ```bash
-curl -s http://127.0.0.1:10000/health
+TOKEN="$(cat /hubfly-tool-manager/.token)"
+curl -s http://127.0.0.1:10000/health -H "Authorization: Bearer $TOKEN"
 ```
 Response includes manager `version` (in release builds this is injected from the Git tag).
 
 Register tool:
 ```bash
 curl -s -X POST http://127.0.0.1:10000/tools/register \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "Hubfly Scale",
@@ -110,23 +129,24 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
 
 List/status:
 ```bash
-curl -s http://127.0.0.1:10000/tools
-curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale
-curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/version
+curl -s http://127.0.0.1:10000/tools -H "Authorization: Bearer $TOKEN"
+curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale -H "Authorization: Bearer $TOKEN"
+curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/version -H "Authorization: Bearer $TOKEN"
 ```
 
 Lifecycle:
 ```bash
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/start
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/stop
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/restart
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/provision
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/update
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/start -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/stop -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/restart -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/provision -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/update -H "Authorization: Bearer $TOKEN"
 ```
 
 Update tool metadata and immediately update/restart tool:
 ```bash
 curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/configure-update \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "download_url":"https://example.com/releases/hubfly-scale-v2",
@@ -138,26 +158,27 @@ curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/configure-update \
 
 Backups/rollback:
 ```bash
-curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/backups
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/rollback
+curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/backups -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/rollback -H "Authorization: Bearer $TOKEN"
 curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/rollback \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"backup_id":"20260308T010203Z"}'
 ```
 
 History:
 ```bash
-curl -s "http://127.0.0.1:10000/tools/Hubfly%20Scale/history?limit=10"
+curl -s "http://127.0.0.1:10000/tools/Hubfly%20Scale/history?limit=10" -H "Authorization: Bearer $TOKEN"
 ```
 
 Cleanup one tool:
 ```bash
-curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/cleanup
+curl -s -X POST http://127.0.0.1:10000/tools/Hubfly%20Scale/cleanup -H "Authorization: Bearer $TOKEN"
 ```
 
 Self update:
 ```bash
-curl -s -X POST http://127.0.0.1:10000/self/update
+curl -s -X POST http://127.0.0.1:10000/self/update -H "Authorization: Bearer $TOKEN"
 ```
 Self-update runs `systemctl daemon-reload` then `systemctl restart hubfly-tool-manager` with direct and `sudo` fallback attempts.
 The endpoint returns immediately (`202 Accepted`) and executes update/restart asynchronously.
@@ -166,6 +187,8 @@ The endpoint returns immediately (`202 Accepted`) and executes update/restart as
 Default server: `HTM_SERVER=http://127.0.0.1:10000`
 
 ```bash
+htm init "YOUR_SECRET_TOKEN"
+htm manager-version
 htm health
 htm register --name "Hubfly Scale" --url "https://example.com/releases/hubfly-scale" --checksum "sha256:abc123" --version-cmd "{binary},version" --args "serve,--port,9010"
 htm list

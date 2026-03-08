@@ -7,6 +7,7 @@ type RuntimeConfig struct {
 	DataDir            string
 	BackupsDir         string
 	ToolsDir           string
+	TokenFile          string
 	PM2Bin             string
 	GitBin             string
 	RestartOnBoot      bool

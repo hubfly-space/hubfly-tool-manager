@@ -19,3 +19,7 @@
 - Improved operations:
   - installer now links `htm` and `hubfly-tool-manager` into `/usr/local/bin`
   - self-update no longer requires working directory; it auto-updates from GitHub releases
+- Added API token security:
+  - all endpoints now require token except public manager version endpoint
+  - token initialized/overwritten locally using `htm init` (no API endpoint for token setup)
+  - CLI auto-loads token from `/hubfly-tool-manager/.token` for protected requests

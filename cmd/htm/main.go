@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,12 +32,16 @@ func main() {
 
 	var err error
 	switch cmd {
+	case "init":
+		err = initToken(args)
+	case "manager-version":
+		err = doGet(baseURL, "/version", false)
 	case "health":
-		err = doGet(baseURL, "/health")
+		err = doGet(baseURL, "/health", true)
 	case "register":
 		err = register(baseURL, args)
 	case "list":
-		err = doGet(baseURL, "/tools")
+		err = doGet(baseURL, "/tools", true)
 	case "status":
 		err = requireToolAndGet(baseURL, args, "")
 	case "version":
@@ -70,6 +76,8 @@ func usage() {
 
 Usage:
   htm health
+  htm manager-version
+  htm init [TOKEN]
   htm register --name <name> --url <download_url> [--checksum <sha256>] [--version-cmd <comma-separated>] [--args <comma-separated>]
   htm list
   htm status <tool>
@@ -87,7 +95,8 @@ Usage:
   htm self-update
 
 Env:
-  HTM_SERVER   default: http://127.0.0.1:10000`)
+  HTM_SERVER     default: http://127.0.0.1:10000
+  HTM_TOKEN_FILE default: /hubfly-tool-manager/.token`)
 }
 
 func register(baseURL string, args []string) error {
@@ -121,7 +130,7 @@ func register(baseURL string, args []string) error {
 	if items := parseCSV(*toolArgs); len(items) > 0 {
 		body["args"] = items
 	}
-	return doPost(baseURL, "/tools/register", body)
+	return doPost(baseURL, "/tools/register", body, true)
 }
 
 func parseCSV(v string) []string {
@@ -152,14 +161,14 @@ func history(baseURL string, args []string) error {
 		}
 		path += "?limit=" + strconv.Itoa(limit)
 	}
-	return doGet(baseURL, path)
+	return doGet(baseURL, path, true)
 }
 
 func selfUpdate(baseURL string, args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("self-update does not take arguments")
 	}
-	return doPost(baseURL, "/self/update", map[string]any{})
+	return doPost(baseURL, "/self/update", map[string]any{}, true)
 }
 
 func configureUpdate(baseURL string, args []string) error {
@@ -194,7 +203,7 @@ func configureUpdate(baseURL string, args []string) error {
 		return fmt.Errorf("provide at least one change (--url, --checksum, --version-cmd, --args)")
 	}
 
-	return doPost(baseURL, "/tools/"+url.PathEscape(toolName)+"/configure-update", body)
+	return doPost(baseURL, "/tools/"+url.PathEscape(toolName)+"/configure-update", body, true)
 }
 
 func rollback(baseURL string, args []string) error {
@@ -205,7 +214,7 @@ func rollback(baseURL string, args []string) error {
 	if len(args) > 1 {
 		body["backup_id"] = args[1]
 	}
-	return doPost(baseURL, "/tools/"+url.PathEscape(args[0])+"/rollback", body)
+	return doPost(baseURL, "/tools/"+url.PathEscape(args[0])+"/rollback", body, true)
 }
 
 func requireToolAndGet(baseURL string, args []string, suffix string) error {
@@ -213,7 +222,7 @@ func requireToolAndGet(baseURL string, args []string, suffix string) error {
 		return fmt.Errorf("missing tool name")
 	}
 	path := "/tools/" + url.PathEscape(args[0]) + suffix
-	return doGet(baseURL, path)
+	return doGet(baseURL, path, true)
 }
 
 func requireToolAndPost(baseURL string, args []string, suffix string, body any) error {
@@ -221,11 +230,22 @@ func requireToolAndPost(baseURL string, args []string, suffix string, body any) 
 		return fmt.Errorf("missing tool name")
 	}
 	path := "/tools/" + url.PathEscape(args[0]) + suffix
-	return doPost(baseURL, path, body)
+	return doPost(baseURL, path, body, true)
 }
 
-func doGet(baseURL, path string) error {
-	resp, err := httpClient().Get(strings.TrimRight(baseURL, "/") + path)
+func doGet(baseURL, path string, needAuth bool) error {
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(baseURL, "/")+path, nil)
+	if err != nil {
+		return err
+	}
+	if needAuth {
+		token, err := readToken()
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := httpClient().Do(req)
 	if err != nil {
 		return err
 	}
@@ -233,7 +253,7 @@ func doGet(baseURL, path string) error {
 	return printResponse(resp)
 }
 
-func doPost(baseURL, path string, body any) error {
+func doPost(baseURL, path string, body any, needAuth bool) error {
 	var reader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -246,6 +266,13 @@ func doPost(baseURL, path string, body any) error {
 	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(baseURL, "/")+path, reader)
 	if err != nil {
 		return err
+	}
+	if needAuth {
+		token, err := readToken()
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -280,4 +307,64 @@ func printResponse(resp *http.Response) error {
 
 func httpClient() *http.Client {
 	return &http.Client{Timeout: 90 * time.Second}
+}
+
+func tokenFilePath() string {
+	if p := strings.TrimSpace(os.Getenv("HTM_TOKEN_FILE")); p != "" {
+		return p
+	}
+	return "/hubfly-tool-manager/.token"
+}
+
+func readToken() (string, error) {
+	b, err := os.ReadFile(tokenFilePath())
+	if err != nil {
+		return "", fmt.Errorf("read token file (%s): %w; run `htm init`", tokenFilePath(), err)
+	}
+	token := strings.TrimSpace(string(b))
+	if token == "" {
+		return "", fmt.Errorf("token file (%s) is empty; run `htm init`", tokenFilePath())
+	}
+	return token, nil
+}
+
+func initToken(args []string) error {
+	var token string
+	if len(args) > 0 {
+		token = strings.TrimSpace(args[0])
+	} else {
+		fmt.Print("Enter token: ")
+		if _, err := fmt.Scanln(&token); err != nil {
+			return fmt.Errorf("read token: %w", err)
+		}
+		token = strings.TrimSpace(token)
+	}
+	if token == "" {
+		return fmt.Errorf("token cannot be empty")
+	}
+
+	path := tokenFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create token dir: %w", err)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(token+"\n"), 0o600); err != nil {
+		return fmt.Errorf("write token: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("save token: %w", err)
+	}
+
+	// If run by root and hubfly user exists, set ownership so service can read token.
+	if os.Geteuid() == 0 {
+		if u, err := user.Lookup("hubfly"); err == nil {
+			uid, _ := strconv.Atoi(u.Uid)
+			gid, _ := strconv.Atoi(u.Gid)
+			_ = os.Chown(path, uid, gid)
+			_ = os.Chmod(path, 0o600)
+		}
+	}
+
+	fmt.Printf("Token initialized at %s\n", path)
+	return nil
 }

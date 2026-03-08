@@ -11,9 +11,9 @@
 - [x] Per-tool folder convention and binary chmod+x handling
 - [x] Per-tool cleanup endpoint (tool dir + backups + db)
 - [x] Linux release workflow and one-line installer with systemd auto-restart
+- [x] Token-based API protection with local `htm init` initialization flow
 
 ## Next hardening
-- [ ] Add auth/token protection for HTTP endpoints
 - [ ] Add integration tests with mocked PM2 and download server
 - [ ] Add per-tool concurrency locks
 - [ ] Add optional signed binary verification
