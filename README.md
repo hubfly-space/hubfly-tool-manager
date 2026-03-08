@@ -27,7 +27,7 @@ Now fully database-driven:
 ## Quick Install (One Line, Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hubfly-tools/hubfly-tool-manager/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/hubfly-space/hubfly-tool-manager/main/scripts/install.sh | sudo bash
 ```
 
 Optional env overrides for installer:

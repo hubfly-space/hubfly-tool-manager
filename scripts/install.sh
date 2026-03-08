@@ -6,7 +6,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-REPO="${HUBFLY_REPO:-hubfly-tools/hubfly-tool-manager}"
+REPO="${HUBFLY_REPO:-hubfly-space/hubfly-tool-manager}"
 INSTALL_DIR="/hubfly-tool-manager"
 BIN_DIR="$INSTALL_DIR/bin"
 SERVICE_FILE="/etc/systemd/system/hubfly-tool-manager.service"
