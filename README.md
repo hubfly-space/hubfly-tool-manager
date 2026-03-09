@@ -193,7 +193,19 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
     "args": []
   }'
 ```
-
+filebrowser
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/register \
+  -H "Authorization: Bearer testing" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "filebrowser",
+    "download_url": "https://github.com/hubfly-space/filebrowser/releases/latest/download/filebrowser",
+    "version_command": ["{binary}", "version"],
+    "args": ["--port","10001"]
+  }'
+  
+```
 
 List/status:
 ```bash
