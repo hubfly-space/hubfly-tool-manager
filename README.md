@@ -136,6 +136,23 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
   }'
 ```
 
+
+Basic Tools:
+hubfly-cmonitor
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/register \
+  -H "Authorization: Bearer testing" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "hubfly-cmonitor",
+    "download_url": "https://github.com/hubfly-space/hubfly-cmonitor/releases/latest/download/hubfly-cmonitor_v1.0.0_linux_amd64.zip",
+    "version_command": ["{binary}", "version"],
+    "args": []
+  }'
+```
+
+
+
 List/status:
 ```bash
 curl -s http://127.0.0.1:10000/tools -H "Authorization: Bearer $TOKEN"
@@ -235,3 +252,67 @@ The repository includes [release-linux.yml](/home/bonheur/Desktop/Projects/hubfl
 - creates tarballs
 - generates `checksums.txt`
 - publishes GitHub Release assets
+
+## Troubleshooting
+
+If update/install/runtime is not working as expected, use the commands below.
+
+### Self-update did not change version
+
+Check health/version before and after:
+```bash
+htm health
+htm self-update
+htm health
+```
+
+Read service logs:
+```bash
+journalctl -u hubfly-tool-manager -n 200 --no-pager
+journalctl -u hubfly-tool-manager --since "20 min ago" --no-pager | grep -Ei "self-update|daemon-reload|restart|failed|error"
+```
+
+Follow logs live while triggering update:
+```bash
+journalctl -u hubfly-tool-manager -f
+# in another shell
+htm self-update
+```
+
+Verify release API reachability as service user:
+```bash
+sudo -u hubfly curl -fsSL https://api.github.com/repos/hubfly-space/hubfly-tool-manager/releases/latest | head -c 400
+sudo -u hubfly curl -I https://github.com/hubfly-space/hubfly-tool-manager/releases/latest
+```
+
+Verify installed binary and active version:
+```bash
+ls -l /hubfly-tool-manager/bin/hubfly-tool-manager
+htm health
+```
+
+### Service not listening on port 10000
+
+Check service status and recent logs:
+```bash
+systemctl status hubfly-tool-manager --no-pager
+journalctl -u hubfly-tool-manager -n 120 --no-pager
+```
+
+Check listener:
+```bash
+ss -ltnp | grep 10000
+curl -s http://127.0.0.1:10000/version
+```
+
+### Auth/lockdown troubleshooting
+
+Initialize token:
+```bash
+htm init "YOUR_SECRET_TOKEN"
+```
+
+If locked after repeated invalid-token attempts:
+```bash
+htm unlock
+```
