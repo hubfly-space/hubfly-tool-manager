@@ -133,6 +133,7 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
 ```
 
 
+
 Basic Tools:
 hubfly-cmonitor
 ```bash
@@ -146,6 +147,10 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
     "args": []
   }'
 ```
+curl -s http://127.0.0.1:10000/tools -H "Authorization: Bearer testing"
+curl -s -X POST http://127.0.0.1:10000/tools/hubfly-cmonitor/start -H "Authorization: Bearer testing"
+curl -s -X POST http://127.0.0.1:10000/tools/hubfly-cmonitor/provision -H "Authorization: Bearer testing"
+curl -s -X POST http://127.0.0.1:10000/tools/hubfly-cmonitor/cleanup -H "Authorization: Bearer testing"
 
 
 
