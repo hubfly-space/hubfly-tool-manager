@@ -41,3 +41,5 @@
 - Improved binary download compatibility:
   - tool downloader now supports archive URLs (`.zip`, `.tar.gz`, `.tgz`)
   - manager extracts and installs executable payload instead of trying to run archive files directly
+- Fixed per-tool runtime working directory:
+  - PM2 start now sets `--cwd` to each tool folder so runtime files (e.g. sqlite files) are created inside that tool directory

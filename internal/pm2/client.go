@@ -69,7 +69,7 @@ func (c *Client) StartOrReload(t model.ToolConfig) error {
 	}
 
 	if status == "not_managed" {
-		args := []string{"start", t.BinaryPath, "--name", t.Name}
+		args := []string{"start", t.BinaryPath, "--name", t.Name, "--cwd", t.ToolDir}
 		if len(t.Args) > 0 {
 			args = append(args, "--")
 			args = append(args, t.Args...)
