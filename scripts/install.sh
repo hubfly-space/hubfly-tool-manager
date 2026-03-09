@@ -81,6 +81,35 @@ done
 # Normalize PATH for non-interactive sudo contexts.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:${PATH:-}"
 
+append_path_if_dir() {
+  local d="$1"
+  if [[ -n "$d" && -d "$d" ]]; then
+    case ":$PATH:" in
+      *":$d:"*) ;;
+      *) PATH="$d:$PATH" ;;
+    esac
+  fi
+}
+
+append_nvm_node_bins() {
+  local bases=(
+    "/root/.nvm/versions/node"
+    "${HOME:-}/.nvm/versions/node"
+  )
+  local base
+  for base in "${bases[@]}"; do
+    [[ -d "$base" ]] || continue
+    local latest=""
+    latest="$(ls -1d "$base"/v*/bin 2>/dev/null | sort -V | tail -n1 || true)"
+    if [[ -n "$latest" ]]; then
+      append_path_if_dir "$latest"
+      log "Detected nvm node bin path: $latest"
+    fi
+  done
+}
+
+append_nvm_node_bins
+
 resolve_bin() {
   local bin="$1"
   if command -v "$bin" >/dev/null 2>&1; then
