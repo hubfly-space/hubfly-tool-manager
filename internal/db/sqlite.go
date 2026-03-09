@@ -154,8 +154,9 @@ func (s *Store) UpdateTool(tool model.ToolConfig) error {
 
 	_, err = s.db.Exec(
 		`UPDATE tools
-         SET binary_path = ?, download_url = ?, checksum = ?, args_json = ?, version_command_json = ?, updated_at = ?
+         SET tool_dir = ?, binary_path = ?, download_url = ?, checksum = ?, args_json = ?, version_command_json = ?, updated_at = ?
          WHERE name = ?`,
+		tool.ToolDir,
 		tool.BinaryPath,
 		tool.DownloadURL,
 		tool.Checksum,

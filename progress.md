@@ -27,3 +27,14 @@
   - 10 invalid-token attempts trigger API lockdown for protected endpoints
   - lockdown state persisted in `/hubfly-tool-manager/.lockdown.json`
   - unlock available only via local CLI command `htm unlock`
+
+## 2026-03-09
+- Fixed tool runtime path stability:
+  - server now normalizes runtime paths to absolute paths at startup
+  - manager auto-normalizes persisted `tool_dir` and `binary_path` to `/hubfly-tool-manager/tools/<slug>`
+  - persisted tool path updates are saved back to SQLite to prevent recursive `tools/tools/...` growth
+- Improved PM2 reliability checks:
+  - tool start/restart now waits for PM2 status to become `online`
+  - immediate `errored/stopped` states now return a real API error instead of false success
+- Extended DB update behavior:
+  - `UpdateTool` now persists `tool_dir` as well (not only `binary_path` and metadata)

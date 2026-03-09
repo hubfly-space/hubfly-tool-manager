@@ -78,14 +78,14 @@ func (c *Client) StartOrReload(t model.ToolConfig) error {
 		if err != nil {
 			return fmt.Errorf("pm2 start: %w", err)
 		}
-		return nil
+		return c.waitUntilOnline(t.Name)
 	}
 
 	_, err = c.runner.Run(c.pm2Bin, "restart", t.Name)
 	if err != nil {
 		return fmt.Errorf("pm2 restart: %w", err)
 	}
-	return nil
+	return c.waitUntilOnline(t.Name)
 }
 
 func (c *Client) Stop(name string) error {
@@ -131,6 +131,28 @@ func (c *Client) Save() error {
 		return fmt.Errorf("pm2 save: %w", err)
 	}
 	return nil
+}
+
+func (c *Client) waitUntilOnline(name string) error {
+	deadline := time.Now().Add(8 * time.Second)
+	lastStatus := "unknown"
+
+	for time.Now().Before(deadline) {
+		status, err := c.Status(name)
+		if err != nil {
+			return err
+		}
+		lastStatus = status
+		switch status {
+		case "online":
+			return nil
+		case "errored", "stopped":
+			return fmt.Errorf("pm2 process %s status=%s", name, status)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("pm2 process %s did not become online (last status=%s)", name, lastStatus)
 }
 
 type jlistEntry struct {

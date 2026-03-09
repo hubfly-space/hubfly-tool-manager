@@ -16,6 +16,7 @@
 
 ## Next hardening
 - [ ] Add integration tests with mocked PM2 and download server
+- [ ] Add a migration command to proactively rewrite any legacy relative tool paths in bulk
 - [ ] Add per-tool concurrency locks
 - [ ] Add optional signed binary verification
 - [ ] Add explicit restore endpoint to pick backup + dry-run validation

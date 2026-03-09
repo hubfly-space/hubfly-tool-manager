@@ -174,6 +174,11 @@ func (m *Manager) ListStatus() []model.ToolRuntimeStatus {
 	}
 	out := make([]model.ToolRuntimeStatus, 0, len(tools))
 	for _, t := range tools {
+		if normalized, nerr := m.normalizeToolPaths(t); nerr == nil {
+			t = normalized
+		} else {
+			m.logger.Printf("path normalization warning for %s: %v", t.Name, nerr)
+		}
 		out = append(out, m.getStatusForTool(t))
 	}
 	return out
@@ -523,6 +528,48 @@ func (m *Manager) mustTool(name string) (model.ToolConfig, error) {
 			return model.ToolConfig{}, fmt.Errorf("unknown tool: %s", name)
 		}
 		return model.ToolConfig{}, err
+	}
+	t, err = m.normalizeToolPaths(t)
+	if err != nil {
+		return model.ToolConfig{}, err
+	}
+	return t, nil
+}
+
+func (m *Manager) normalizeToolPaths(t model.ToolConfig) (model.ToolConfig, error) {
+	expectedDir := filepath.Join(m.cfg.ToolsDir, t.Slug)
+
+	binName := filepath.Base(strings.TrimSpace(t.BinaryPath))
+	if binName == "" || binName == "." || binName == "/" {
+		binName = binaryNameFromURL(t.DownloadURL, t.Slug)
+	}
+	expectedBinary := filepath.Join(expectedDir, binName)
+
+	currentDir := filepath.Clean(strings.TrimSpace(t.ToolDir))
+	currentBinary := filepath.Clean(strings.TrimSpace(t.BinaryPath))
+	if currentDir == filepath.Clean(expectedDir) && currentBinary == filepath.Clean(expectedBinary) {
+		return t, nil
+	}
+
+	if err := os.MkdirAll(expectedDir, 0o755); err != nil {
+		return t, fmt.Errorf("normalize tool dir for %s: %w", t.Name, err)
+	}
+
+	// Best-effort migration of an existing binary from old path to canonical path.
+	if currentBinary != "" && currentBinary != "." && currentBinary != expectedBinary {
+		if _, err := os.Stat(expectedBinary); errors.Is(err, os.ErrNotExist) {
+			if _, oldErr := os.Stat(currentBinary); oldErr == nil {
+				if cpErr := copyPath(currentBinary, expectedBinary); cpErr != nil {
+					m.logger.Printf("warning: copy old binary path for %s failed (%s -> %s): %v", t.Name, currentBinary, expectedBinary, cpErr)
+				}
+			}
+		}
+	}
+
+	t.ToolDir = expectedDir
+	t.BinaryPath = expectedBinary
+	if err := m.store.UpdateTool(t); err != nil {
+		return t, fmt.Errorf("persist normalized tool paths for %s: %w", t.Name, err)
 	}
 	return t, nil
 }

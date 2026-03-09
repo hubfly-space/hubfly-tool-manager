@@ -31,11 +31,11 @@ func main() {
 
 	cfg := model.RuntimeConfig{
 		ListenAddr:         *listenAddr,
-		DataDir:            *dataDir,
-		BackupsDir:         *backupsDir,
-		ToolsDir:           *toolsDir,
-		TokenFile:          *tokenFile,
-		LockdownFile:       *lockdownFile,
+		DataDir:            absPathOrDefault(*dataDir, "/hubfly-tool-manager/data"),
+		BackupsDir:         absPathOrDefault(*backupsDir, "/hubfly-tool-manager/backups"),
+		ToolsDir:           absPathOrDefault(*toolsDir, "/hubfly-tool-manager/tools"),
+		TokenFile:          absPathOrDefault(*tokenFile, "/hubfly-tool-manager/.token"),
+		LockdownFile:       absPathOrDefault(*lockdownFile, "/hubfly-tool-manager/.lockdown.json"),
 		PM2Bin:             *pm2Bin,
 		GitBin:             *gitBin,
 		RestartOnBoot:      *restartOnBoot,
@@ -69,4 +69,19 @@ func main() {
 	if err := httpapi.ListenAndServe(cfg.ListenAddr, srv.Handler(), logger); err != nil {
 		logger.Fatalf("server error: %v", err)
 	}
+}
+
+func absPathOrDefault(pathValue, fallback string) string {
+	v := pathValue
+	if v == "" {
+		v = fallback
+	}
+	if filepath.IsAbs(v) {
+		return filepath.Clean(v)
+	}
+	abs, err := filepath.Abs(v)
+	if err != nil {
+		return filepath.Clean(fallback)
+	}
+	return filepath.Clean(abs)
 }
