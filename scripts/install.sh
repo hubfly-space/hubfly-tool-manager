@@ -139,6 +139,17 @@ ensure_pm2_prereqs() {
     fail "Missing runtime prerequisites. Ensure node, npm, and pm2 are installed system-wide (not shell-only via nvm)."
   fi
 
+  # Reject root-private nvm binaries: service runs as user "hubfly" and cannot rely on /root paths.
+  case "$node_bin $npm_bin $pm2_bin" in
+    *"/root/"*)
+      log "Detected root-private runtime paths:"
+      log "  node: $node_bin"
+      log "  npm:  $npm_bin"
+      log "  pm2:  $pm2_bin"
+      fail "Detected binaries under /root (likely nvm). Install node/npm/pm2 system-wide and avoid /root/.nvm paths."
+      ;;
+  esac
+
   log "node detected: $node_bin"
   log "npm detected: $npm_bin"
   log "pm2 detected: $pm2_bin"
