@@ -24,6 +24,7 @@ Now fully database-driven:
 - Manager self-update endpoint (not stored in tool version history)
 - Manager runs as a `systemd` service (not PM2) with automatic restart
 - Token-based API security (all endpoints protected except manager version check)
+- Lockdown mode after repeated invalid-token attempts (10); unlock only via local CLI
 
 ## Quick Install (One Line, Linux)
 
@@ -108,6 +109,11 @@ htm init 'YOUR_SECRET_TOKEN'
 ```
 
 After initialization, all other endpoints require token via `Authorization: Bearer <TOKEN>` (or `X-HTM-Token`).
+After 10 invalid-token attempts, service enters lockdown mode for protected endpoints.
+Clear lockdown locally:
+```bash
+htm unlock
+```
 
 Health:
 ```bash
@@ -193,6 +199,7 @@ Default server: `HTM_SERVER=http://127.0.0.1:10000`
 htm init "YOUR_SECRET_TOKEN"
 htm manager-version
 htm health
+htm unlock
 htm register --name "Hubfly Scale" --url "https://example.com/releases/hubfly-scale" --checksum "sha256:abc123" --version-cmd "{binary},version" --args "serve,--port,9010"
 htm list
 htm status "Hubfly Scale"

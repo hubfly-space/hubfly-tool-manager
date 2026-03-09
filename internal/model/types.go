@@ -8,6 +8,7 @@ type RuntimeConfig struct {
 	BackupsDir         string
 	ToolsDir           string
 	TokenFile          string
+	LockdownFile       string
 	PM2Bin             string
 	GitBin             string
 	RestartOnBoot      bool

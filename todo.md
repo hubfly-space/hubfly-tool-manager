@@ -12,6 +12,7 @@
 - [x] Per-tool cleanup endpoint (tool dir + backups + db)
 - [x] Linux release workflow and one-line installer with systemd auto-restart
 - [x] Token-based API protection with local `htm init` initialization flow
+- [x] Lockdown mode after repeated invalid-token attempts with local CLI unlock
 
 ## Next hardening
 - [ ] Add integration tests with mocked PM2 and download server

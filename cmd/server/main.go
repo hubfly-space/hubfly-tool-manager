@@ -20,6 +20,7 @@ func main() {
 	backupsDir := flag.String("backups-dir", envOrDefault("HTM_BACKUPS_DIR", "/hubfly-tool-manager/backups"), "directory for backups")
 	toolsDir := flag.String("tools-dir", envOrDefault("HTM_TOOLS_DIR", "/hubfly-tool-manager/tools"), "directory holding per-tool folders")
 	tokenFile := flag.String("token-file", envOrDefault("HTM_TOKEN_FILE", "/hubfly-tool-manager/.token"), "security token file path")
+	lockdownFile := flag.String("lockdown-file", envOrDefault("HTM_LOCKDOWN_FILE", "/hubfly-tool-manager/.lockdown.json"), "lockdown state file path")
 	pm2Bin := flag.String("pm2-bin", envOrDefault("HTM_PM2_BIN", "pm2"), "pm2 binary")
 	gitBin := flag.String("git-bin", envOrDefault("HTM_GIT_BIN", "git"), "git binary")
 	timeoutSecs := flag.Int("command-timeout-secs", envIntOrDefault("HTM_COMMAND_TIMEOUT_SECS", 90), "command timeout in seconds")
@@ -34,6 +35,7 @@ func main() {
 		BackupsDir:         *backupsDir,
 		ToolsDir:           *toolsDir,
 		TokenFile:          *tokenFile,
+		LockdownFile:       *lockdownFile,
 		PM2Bin:             *pm2Bin,
 		GitBin:             *gitBin,
 		RestartOnBoot:      *restartOnBoot,
@@ -63,7 +65,7 @@ func main() {
 		mgr.StartAllRegistered()
 	}
 
-	srv := httpapi.New(mgr, logger, cfg.TokenFile)
+	srv := httpapi.New(mgr, logger, cfg.TokenFile, cfg.LockdownFile)
 	if err := httpapi.ListenAndServe(cfg.ListenAddr, srv.Handler(), logger); err != nil {
 		logger.Fatalf("server error: %v", err)
 	}

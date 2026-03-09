@@ -34,6 +34,8 @@ func main() {
 	switch cmd {
 	case "init":
 		err = initToken(args)
+	case "unlock":
+		err = unlockLockdown(args)
 	case "manager-version":
 		err = doGet(baseURL, "/version", false)
 	case "health":
@@ -78,6 +80,7 @@ Usage:
   htm health
   htm manager-version
   htm init [TOKEN]
+  htm unlock
   htm register --name <name> --url <download_url> [--checksum <sha256>] [--version-cmd <comma-separated>] [--args <comma-separated>]
   htm list
   htm status <tool>
@@ -96,7 +99,8 @@ Usage:
 
 Env:
   HTM_SERVER     default: http://127.0.0.1:10000
-  HTM_TOKEN_FILE default: /hubfly-tool-manager/.token`)
+  HTM_TOKEN_FILE default: /hubfly-tool-manager/.token
+  HTM_LOCKDOWN_FILE default: /hubfly-tool-manager/.lockdown.json`)
 }
 
 func register(baseURL string, args []string) error {
@@ -366,5 +370,40 @@ func initToken(args []string) error {
 	}
 
 	fmt.Printf("Token initialized at %s\n", path)
+	return nil
+}
+
+func lockdownFilePath() string {
+	if p := strings.TrimSpace(os.Getenv("HTM_LOCKDOWN_FILE")); p != "" {
+		return p
+	}
+	return "/hubfly-tool-manager/.lockdown.json"
+}
+
+func unlockLockdown(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("unlock does not take arguments")
+	}
+	path := lockdownFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create lockdown dir: %w", err)
+	}
+	payload := []byte("{\"locked\":false,\"failed_attempts\":0,\"updated_at\":\"" + time.Now().UTC().Format(time.RFC3339Nano) + "\"}\n")
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, payload, 0o600); err != nil {
+		return fmt.Errorf("write lockdown state: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("save lockdown state: %w", err)
+	}
+	if os.Geteuid() == 0 {
+		if u, err := user.Lookup("hubfly"); err == nil {
+			uid, _ := strconv.Atoi(u.Uid)
+			gid, _ := strconv.Atoi(u.Gid)
+			_ = os.Chown(path, uid, gid)
+			_ = os.Chmod(path, 0o600)
+		}
+	}
+	fmt.Printf("Lockdown cleared in %s\n", path)
 	return nil
 }

@@ -23,3 +23,7 @@
   - all endpoints now require token except public manager version endpoint
   - token initialized/overwritten locally using `htm init` (no API endpoint for token setup)
   - CLI auto-loads token from `/hubfly-tool-manager/.token` for protected requests
+- Added lockdown protection:
+  - 10 invalid-token attempts trigger API lockdown for protected endpoints
+  - lockdown state persisted in `/hubfly-tool-manager/.lockdown.json`
+  - unlock available only via local CLI command `htm unlock`

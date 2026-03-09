@@ -9,8 +9,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"hubfly-tool-manager/internal/model"
@@ -19,14 +21,16 @@ import (
 )
 
 type Server struct {
-	manager   *tool.Manager
-	logger    *log.Logger
-	mux       *http.ServeMux
-	tokenFile string
+	manager      *tool.Manager
+	logger       *log.Logger
+	mux          *http.ServeMux
+	tokenFile    string
+	lockdownFile string
+	authMu       sync.Mutex
 }
 
-func New(manager *tool.Manager, logger *log.Logger, tokenFile string) *Server {
-	s := &Server{manager: manager, logger: logger, mux: http.NewServeMux(), tokenFile: tokenFile}
+func New(manager *tool.Manager, logger *log.Logger, tokenFile, lockdownFile string) *Server {
+	s := &Server{manager: manager, logger: logger, mux: http.NewServeMux(), tokenFile: tokenFile, lockdownFile: lockdownFile}
 	s.routes()
 	return s
 }
@@ -75,6 +79,16 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		state, err := s.loadLockdownState()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to read lockdown state")
+			return
+		}
+		if state.Locked {
+			writeError(w, http.StatusLocked, "service is in lockdown mode; run `htm unlock` locally")
+			return
+		}
+
 		expected, err := s.loadToken()
 		if err != nil {
 			writeError(w, http.StatusServiceUnavailable, "security token not initialized; run `htm init`")
@@ -82,11 +96,104 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 		got := strings.TrimSpace(extractToken(r))
 		if got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+			// Count failed attempts only when a token is provided but invalid.
+			if got != "" {
+				if st, err := s.recordFailedAttempt(); err == nil && st.Locked {
+					writeError(w, http.StatusLocked, "service entered lockdown mode after repeated invalid token attempts; run `htm unlock` locally")
+					return
+				}
+			}
 			writeError(w, http.StatusUnauthorized, "invalid or missing security token")
 			return
 		}
+
+		if err := s.clearFailedAttempts(); err != nil {
+			s.logger.Printf("warning: failed to clear failed auth attempts: %v", err)
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+type lockdownState struct {
+	Locked         bool      `json:"locked"`
+	FailedAttempts int       `json:"failed_attempts"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+func (s *Server) loadLockdownState() (lockdownState, error) {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	return s.loadLockdownStateUnlocked()
+}
+
+func (s *Server) loadLockdownStateUnlocked() (lockdownState, error) {
+	var st lockdownState
+	if strings.TrimSpace(s.lockdownFile) == "" {
+		return st, errors.New("empty lockdown file path")
+	}
+	b, err := os.ReadFile(s.lockdownFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return lockdownState{}, nil
+		}
+		return st, err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return lockdownState{}, nil
+	}
+	if err := json.Unmarshal(b, &st); err != nil {
+		return st, err
+	}
+	return st, nil
+}
+
+func (s *Server) saveLockdownStateUnlocked(st lockdownState) error {
+	if err := os.MkdirAll(filepath.Dir(s.lockdownFile), 0o755); err != nil {
+		return err
+	}
+	tmp := s.lockdownFile + ".tmp"
+	b, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.lockdownFile)
+}
+
+func (s *Server) recordFailedAttempt() (lockdownState, error) {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+
+	st, err := s.loadLockdownStateUnlocked()
+	if err != nil {
+		return st, err
+	}
+	st.FailedAttempts++
+	if st.FailedAttempts >= 10 {
+		st.Locked = true
+	}
+	st.UpdatedAt = time.Now().UTC()
+	if err := s.saveLockdownStateUnlocked(st); err != nil {
+		return st, err
+	}
+	return st, nil
+}
+
+func (s *Server) clearFailedAttempts() error {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	st, err := s.loadLockdownStateUnlocked()
+	if err != nil {
+		return err
+	}
+	if st.FailedAttempts == 0 && !st.Locked {
+		return nil
+	}
+	st.FailedAttempts = 0
+	st.UpdatedAt = time.Now().UTC()
+	return s.saveLockdownStateUnlocked(st)
 }
 
 func (s *Server) loadToken() (string, error) {
