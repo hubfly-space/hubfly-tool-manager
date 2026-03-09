@@ -577,6 +577,9 @@ func (m *Manager) normalizeToolPaths(t model.ToolConfig) (model.ToolConfig, erro
 
 func isArchivePath(path string) bool {
 	p := strings.ToLower(strings.TrimSpace(path))
+	if u, err := url.Parse(p); err == nil && u.Path != "" {
+		p = strings.ToLower(strings.TrimSpace(u.Path))
+	}
 	return strings.HasSuffix(p, ".zip") || strings.HasSuffix(p, ".tar.gz") || strings.HasSuffix(p, ".tgz")
 }
 
@@ -789,6 +792,9 @@ func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error
 			lastErr = err
 			break
 		}
+		if isArchivePath(downloadURL) {
+			_ = removeArchiveArtifacts(filepath.Dir(targetPath))
+		}
 		return nil
 	}
 
@@ -802,8 +808,10 @@ func (m *Manager) materializeBinary(downloadURL, downloadedPath, targetPath stri
 	urlLower := strings.ToLower(strings.TrimSpace(downloadURL))
 	switch {
 	case strings.HasSuffix(urlLower, ".zip"):
+		defer os.Remove(downloadedPath)
 		return extractBinaryFromZip(downloadedPath, targetPath)
 	case strings.HasSuffix(urlLower, ".tar.gz"), strings.HasSuffix(urlLower, ".tgz"):
+		defer os.Remove(downloadedPath)
 		return extractBinaryFromTarGz(downloadedPath, targetPath)
 	default:
 		if err := os.Rename(downloadedPath, targetPath); err != nil {
@@ -1017,6 +1025,9 @@ func slugifyName(name string) string {
 }
 
 func binaryNameFromURL(downloadURL, fallback string) string {
+	if isArchivePath(downloadURL) {
+		return fallback
+	}
 	u, err := url.Parse(downloadURL)
 	if err != nil {
 		return fallback
@@ -1025,13 +1036,7 @@ func binaryNameFromURL(downloadURL, fallback string) string {
 	if base == "" || base == "." || base == "/" {
 		return fallback
 	}
-	name := strings.TrimSuffix(base, ".zip")
-	name = strings.TrimSuffix(name, ".tar.gz")
-	name = strings.TrimSuffix(name, ".tgz")
-	if name == "" || name == "." || name == "/" {
-		return fallback
-	}
-	return name
+	return base
 }
 
 func cleanArgs(args []string) []string {
@@ -1271,4 +1276,21 @@ func writeExecutableFromReader(r io.Reader, dstPath string) error {
 		return err
 	}
 	return os.Chmod(dstPath, 0o755)
+}
+
+func removeArchiveArtifacts(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := strings.ToLower(e.Name())
+		if strings.HasSuffix(name, ".zip") || strings.HasSuffix(name, ".tar.gz") || strings.HasSuffix(name, ".tgz") || strings.HasSuffix(name, ".download.tmp") {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+	return nil
 }
