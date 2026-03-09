@@ -160,6 +160,7 @@ curl -s http://127.0.0.1:10000/tools -H "Authorization: Bearer $TOKEN"
 curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale -H "Authorization: Bearer $TOKEN"
 curl -s http://127.0.0.1:10000/tools/Hubfly%20Scale/version -H "Authorization: Bearer $TOKEN"
 ```
+`GET /tools/{name}` now includes runtime status plus stored database config (`download_url`, `checksum`, `args`, `version_command`, `tool_dir`, `binary_path`, `created_at`, `db_updated_at`).
 
 Lifecycle:
 ```bash

@@ -47,3 +47,5 @@
   - systemd service now runs as `root`
   - managed PM2 tools now run as `root`
   - installer now applies root ownership and removes obsolete hubfly sudoers file
+- Improved tool inspection:
+  - `GET /tools/{name}` now returns runtime status plus persisted DB config fields for easier debugging and audit

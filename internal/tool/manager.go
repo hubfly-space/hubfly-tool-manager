@@ -196,6 +196,10 @@ func (m *Manager) GetStatus(name string) model.ToolRuntimeStatus {
 	return m.getStatusForTool(t)
 }
 
+func (m *Manager) GetTool(name string) (model.ToolConfig, error) {
+	return m.mustTool(name)
+}
+
 func (m *Manager) getStatusForTool(t model.ToolConfig) model.ToolRuntimeStatus {
 	status := model.ToolRuntimeStatus{Name: t.Name, Version: "unknown"}
 	pm2Status, err := m.pm2.Status(t.Name)

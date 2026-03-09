@@ -249,12 +249,32 @@ func (s *Server) handleListTools(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleToolStatus(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	status := s.manager.GetStatus(name)
-	if status.Error != "" && strings.Contains(status.Error, "unknown tool") {
-		writeError(w, http.StatusNotFound, status.Error)
+	cfg, err := s.manager.GetTool(name)
+	if err != nil {
+		if strings.Contains(err.Error(), "unknown tool") {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, status)
+	status := s.manager.GetStatus(name)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":            status.Name,
+		"pm2_status":      status.PM2Status,
+		"version":         status.Version,
+		"updated_at":      status.UpdatedAt,
+		"error":           status.Error,
+		"slug":            cfg.Slug,
+		"tool_dir":        cfg.ToolDir,
+		"binary_path":     cfg.BinaryPath,
+		"download_url":    cfg.DownloadURL,
+		"checksum":        cfg.Checksum,
+		"args":            cfg.Args,
+		"version_command": cfg.VersionCommand,
+		"created_at":      cfg.CreatedAt,
+		"db_updated_at":   cfg.UpdatedAt,
+	})
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
