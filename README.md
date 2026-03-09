@@ -142,7 +142,7 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "hubfly-cmonitor",
-    "download_url": "https://github.com/hubfly-space/hubfly-cmonitor/releases/latest/download/hubfly-cmonitor_v1.0.0_linux_amd64.zip",
+    "download_url": "https://github.com/hubfly-space/hubfly-cmonitor/releases/latest/download/hubfly-cmonitor_linux_amd64.zip",
     "version_command": ["{binary}", "version"],
     "args": []
   }'
@@ -151,6 +151,19 @@ curl -s http://127.0.0.1:10000/tools -H "Authorization: Bearer testing"
 curl -s -X POST http://127.0.0.1:10000/tools/hubfly-cmonitor/start -H "Authorization: Bearer testing"
 curl -s -X POST http://127.0.0.1:10000/tools/hubfly-cmonitor/provision -H "Authorization: Bearer testing"
 curl -s -X POST http://127.0.0.1:10000/tools/hubfly-cmonitor/cleanup -H "Authorization: Bearer testing"
+
+hubfly-reverse-proxy
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/register \
+  -H "Authorization: Bearer testing" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "hubfly-reverse-proxy",
+    "download_url": "https://github.com/hubfly-space/hubfly-reverse-proxy/releases/latest/download/hubfly-linux-amd64.zip",
+    "version_command": ["{binary}", "version"],
+    "args": []
+  }'
+```
 
 
 
