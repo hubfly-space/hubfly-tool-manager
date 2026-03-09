@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,7 +27,23 @@ import (
 	"hubfly-tool-manager/internal/pm2"
 )
 
-const backupRetention = 3
+const (
+	backupRetention   = 3
+	httpRetryAttempts = 4
+	httpRetryBaseWait = 2 * time.Second
+)
+
+var outboundHTTPClient = &http.Client{
+	Timeout: 40 * time.Second,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 12 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   12 * time.Second,
+		ResponseHeaderTimeout: 20 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		IdleConnTimeout:       60 * time.Second,
+	},
+}
 
 type Manager struct {
 	cfg    model.RuntimeConfig
@@ -659,73 +676,125 @@ func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error
 	}
 
 	tmpPath := targetPath + ".tmp"
-	if err := os.RemoveAll(tmpPath); err != nil {
-		return err
-	}
+	var lastErr error
+	for attempt := 1; attempt <= httpRetryAttempts; attempt++ {
+		_ = os.RemoveAll(tmpPath)
 
-	resp, err := http.Get(downloadURL) // #nosec G107
-	if err != nil {
-		return fmt.Errorf("download binary: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("download binary status %d", resp.StatusCode)
-	}
-
-	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		return fmt.Errorf("open temp binary: %w", err)
-	}
-
-	h := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(f, h), resp.Body); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("write downloaded binary: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close temp binary: %w", err)
-	}
-
-	if checksum != "" {
-		actual := hex.EncodeToString(h.Sum(nil))
-		expected := normalizeChecksum(checksum)
-		if actual != expected {
-			_ = os.Remove(tmpPath)
-			return fmt.Errorf("checksum mismatch: expected=%s got=%s", expected, actual)
+		resp, err := outboundHTTPClient.Get(downloadURL) // #nosec G107
+		if err != nil {
+			lastErr = fmt.Errorf("download binary: %w", err)
+			if attempt < httpRetryAttempts && shouldRetryHTTP(err, 0) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
 		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			lastErr = fmt.Errorf("download binary status %d", resp.StatusCode)
+			_ = resp.Body.Close()
+			if attempt < httpRetryAttempts && shouldRetryHTTP(nil, resp.StatusCode) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+
+		f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+		if err != nil {
+			_ = resp.Body.Close()
+			return fmt.Errorf("open temp binary: %w", err)
+		}
+
+		h := sha256.New()
+		_, copyErr := io.Copy(io.MultiWriter(f, h), resp.Body)
+		closeErr := f.Close()
+		_ = resp.Body.Close()
+		if copyErr != nil {
+			lastErr = fmt.Errorf("write downloaded binary: %w", copyErr)
+			if attempt < httpRetryAttempts && shouldRetryHTTP(copyErr, 0) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+		if closeErr != nil {
+			lastErr = fmt.Errorf("close temp binary: %w", closeErr)
+			break
+		}
+
+		if checksum != "" {
+			actual := hex.EncodeToString(h.Sum(nil))
+			expected := normalizeChecksum(checksum)
+			if actual != expected {
+				_ = os.Remove(tmpPath)
+				return fmt.Errorf("checksum mismatch: expected=%s got=%s", expected, actual)
+			}
+		}
+
+		if err := os.Rename(tmpPath, targetPath); err != nil {
+			_ = os.Remove(tmpPath)
+			lastErr = fmt.Errorf("activate new binary: %w", err)
+			break
+		}
+		if err := os.Chmod(targetPath, 0o755); err != nil {
+			lastErr = fmt.Errorf("chmod +x binary: %w", err)
+			break
+		}
+		return nil
 	}
 
-	if err := os.Rename(tmpPath, targetPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("activate new binary: %w", err)
+	if lastErr == nil {
+		lastErr = errors.New("download binary failed")
 	}
-	if err := os.Chmod(targetPath, 0o755); err != nil {
-		return fmt.Errorf("chmod +x binary: %w", err)
-	}
-	return nil
+	return lastErr
 }
 
 func (m *Manager) latestReleaseTag(repo string) (string, error) {
 	u := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
-	resp, err := http.Get(u) // #nosec G107
-	if err != nil {
-		return "", fmt.Errorf("fetch latest release: %w", err)
+	var lastErr error
+	for attempt := 1; attempt <= httpRetryAttempts; attempt++ {
+		resp, err := outboundHTTPClient.Get(u) // #nosec G107
+		if err != nil {
+			lastErr = fmt.Errorf("fetch latest release: %w", err)
+			if attempt < httpRetryAttempts && shouldRetryHTTP(err, 0) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			lastErr = fmt.Errorf("latest release status %d", resp.StatusCode)
+			_ = resp.Body.Close()
+			if attempt < httpRetryAttempts && shouldRetryHTTP(nil, resp.StatusCode) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+
+		var payload struct {
+			TagName string `json:"tag_name"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			_ = resp.Body.Close()
+			lastErr = fmt.Errorf("decode latest release: %w", err)
+			if attempt < httpRetryAttempts {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+		_ = resp.Body.Close()
+		if strings.TrimSpace(payload.TagName) == "" {
+			return "", errors.New("latest release tag is empty")
+		}
+		return strings.TrimSpace(payload.TagName), nil
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("latest release status %d", resp.StatusCode)
+
+	if lastErr == nil {
+		lastErr = errors.New("fetch latest release failed")
 	}
-	var payload struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return "", fmt.Errorf("decode latest release: %w", err)
-	}
-	if strings.TrimSpace(payload.TagName) == "" {
-		return "", errors.New("latest release tag is empty")
-	}
-	return strings.TrimSpace(payload.TagName), nil
+	return "", lastErr
 }
 
 func releaseArch(goarch string) (string, error) {
@@ -740,21 +809,79 @@ func releaseArch(goarch string) (string, error) {
 }
 
 func downloadFile(srcURL, dstPath string) error {
-	resp, err := http.Get(srcURL) // #nosec G107
-	if err != nil {
-		return fmt.Errorf("download file %s: %w", srcURL, err)
+	var lastErr error
+	for attempt := 1; attempt <= httpRetryAttempts; attempt++ {
+		resp, err := outboundHTTPClient.Get(srcURL) // #nosec G107
+		if err != nil {
+			lastErr = fmt.Errorf("download file %s: %w", srcURL, err)
+			if attempt < httpRetryAttempts && shouldRetryHTTP(err, 0) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			lastErr = fmt.Errorf("download file status %d for %s", resp.StatusCode, srcURL)
+			_ = resp.Body.Close()
+			if attempt < httpRetryAttempts && shouldRetryHTTP(nil, resp.StatusCode) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+		f, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			_ = resp.Body.Close()
+			return err
+		}
+		_, copyErr := io.Copy(f, resp.Body)
+		closeErr := f.Close()
+		_ = resp.Body.Close()
+		if copyErr != nil {
+			lastErr = copyErr
+			if attempt < httpRetryAttempts && shouldRetryHTTP(copyErr, 0) {
+				time.Sleep(retryWait(attempt))
+				continue
+			}
+			break
+		}
+		if closeErr != nil {
+			lastErr = closeErr
+			break
+		}
+		return nil
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("download file status %d for %s", resp.StatusCode, srcURL)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("download file failed for %s", srcURL)
 	}
-	f, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
+	return lastErr
+}
+
+func shouldRetryHTTP(err error, status int) bool {
+	if status == http.StatusTooManyRequests || (status >= 500 && status <= 599) {
+		return true
 	}
-	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
-	return err
+	if err == nil {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "tls handshake timeout") ||
+		strings.Contains(msg, "i/o timeout") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "temporary failure") ||
+		strings.Contains(msg, "eof")
+}
+
+func retryWait(attempt int) time.Duration {
+	wait := time.Duration(attempt) * httpRetryBaseWait
+	if wait > 10*time.Second {
+		return 10 * time.Second
+	}
+	return wait
 }
 
 func verifyTarChecksum(assetPath, assetName, checksumsPath string) error {

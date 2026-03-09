@@ -208,6 +208,7 @@ curl -s -X POST http://127.0.0.1:10000/self/update -H "Authorization: Bearer $TO
 ```
 Self-update runs `systemctl daemon-reload` then `systemctl restart hubfly-tool-manager` with direct and `sudo` fallback attempts.
 The endpoint returns immediately (`202 Accepted`) and executes update/restart asynchronously.
+Self-update and release downloads use retry/backoff with explicit TLS/connect timeouts to tolerate transient network errors.
 
 ## CLI
 Default server: `HTM_SERVER=http://127.0.0.1:10000`
