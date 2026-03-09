@@ -43,3 +43,7 @@
   - manager extracts and installs executable payload instead of trying to run archive files directly
 - Fixed per-tool runtime working directory:
   - PM2 start now sets `--cwd` to each tool folder so runtime files (e.g. sqlite files) are created inside that tool directory
+- Switched runtime user model to root:
+  - systemd service now runs as `root`
+  - managed PM2 tools now run as `root`
+  - installer now applies root ownership and removes obsolete hubfly sudoers file

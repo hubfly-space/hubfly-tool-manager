@@ -42,11 +42,7 @@ Installer also exposes binaries globally:
 - Installer performs strict preflight checks for `node`, `npm`, and `pm2`; it stops with an error if any are missing
 - `node`, `npm`, and `pm2` must be installed system-wide (PATH-visible to non-interactive `sudo bash`; shell-only `nvm` installs are not enough)
   - installer also attempts to detect common nvm node bin paths (for root/home users) and include them automatically
-  - installer will reject `/root/.nvm/...` paths because the service runs as `hubfly`
-- Installer adds `/etc/sudoers.d/hubfly-tool-manager` so service user `hubfly` can run:
-  - `systemctl daemon-reload`
-  - `systemctl restart hubfly-tool-manager`
-  Required for self-update to complete.
+- Service runs as `root`, and managed tools run as `root` through PM2.
 - Installer normalizes the service file for self-update compatibility (`StartLimitIntervalSec` in `[Unit]`, no `NoNewPrivileges`).
 
 ## Runtime Configuration
@@ -280,10 +276,10 @@ journalctl -u hubfly-tool-manager -f
 htm self-update
 ```
 
-Verify release API reachability as service user:
+Verify release API reachability:
 ```bash
-sudo -u hubfly curl -fsSL https://api.github.com/repos/hubfly-space/hubfly-tool-manager/releases/latest | head -c 400
-sudo -u hubfly curl -I https://github.com/hubfly-space/hubfly-tool-manager/releases/latest
+curl -fsSL https://api.github.com/repos/hubfly-space/hubfly-tool-manager/releases/latest | head -c 400
+curl -I https://github.com/hubfly-space/hubfly-tool-manager/releases/latest
 ```
 
 Verify installed binary and active version:

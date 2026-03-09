@@ -139,17 +139,6 @@ ensure_pm2_prereqs() {
     fail "Missing runtime prerequisites. Ensure node, npm, and pm2 are installed system-wide (not shell-only via nvm)."
   fi
 
-  # Reject root-private nvm binaries: service runs as user "hubfly" and cannot rely on /root paths.
-  case "$node_bin $npm_bin $pm2_bin" in
-    *"/root/"*)
-      log "Detected root-private runtime paths:"
-      log "  node: $node_bin"
-      log "  npm:  $npm_bin"
-      log "  pm2:  $pm2_bin"
-      fail "Detected binaries under /root (likely nvm). Install node/npm/pm2 system-wide and avoid /root/.nvm paths."
-      ;;
-  esac
-
   log "node detected: $node_bin"
   log "npm detected: $npm_bin"
   log "pm2 detected: $pm2_bin"
@@ -218,18 +207,10 @@ for d in data backups tools; do
   fi
 done
 
-if ! id -u hubfly >/dev/null 2>&1; then
-  run "Creating system user 'hubfly'" useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin hubfly
+run "Applying ownership" chown -R root:root "$INSTALL_DIR"
+if [[ -f "$SUDOERS_FILE" ]]; then
+  run "Removing obsolete sudoers file" rm -f "$SUDOERS_FILE"
 fi
-run "Applying ownership" chown -R hubfly:hubfly "$INSTALL_DIR"
-
-# Allow service user to reload/restart only this service during self-update.
-run "Configuring sudoers for self-update systemctl commands" bash -c "cat > '$SUDOERS_FILE' <<'SUDOEOF'
-Defaults:hubfly !requiretty
-hubfly ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload, /usr/bin/systemctl restart hubfly-tool-manager, /bin/systemctl daemon-reload, /bin/systemctl restart hubfly-tool-manager
-SUDOEOF"
-run "Validating sudoers file" visudo -cf "$SUDOERS_FILE"
-run "Setting sudoers permissions" chmod 0440 "$SUDOERS_FILE"
 
 run "Installing systemd service file" install -m 0644 "$INSTALL_DIR/hubfly-tool-manager.service" "$SERVICE_FILE"
 run "Reloading systemd" systemctl daemon-reload
