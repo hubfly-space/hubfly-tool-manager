@@ -207,6 +207,21 @@ curl -s -X POST http://127.0.0.1:10000/tools/register \
   
 ```
 
+
+hubfly-builder
+```bash
+curl -s -X POST http://127.0.0.1:10000/tools/register \
+  -H "Authorization: Bearer testing" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "hubfly-builder",
+    "download_url": "https://github.com/hubfly-space/hubfly-builder/releases/latest/download/hubfly-builder",
+    "version_command": ["{binary}", "version"],
+    "args": []
+  }'
+  
+```
+
 List/status:
 ```bash
 curl -s http://127.0.0.1:10000/tools -H "Authorization: Bearer $TOKEN"
