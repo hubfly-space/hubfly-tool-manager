@@ -38,3 +38,6 @@
   - immediate `errored/stopped` states now return a real API error instead of false success
 - Extended DB update behavior:
   - `UpdateTool` now persists `tool_dir` as well (not only `binary_path` and metadata)
+- Improved binary download compatibility:
+  - tool downloader now supports archive URLs (`.zip`, `.tar.gz`, `.tgz`)
+  - manager extracts and installs executable payload instead of trying to run archive files directly

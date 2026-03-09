@@ -1,6 +1,10 @@
 package tool
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -722,7 +726,7 @@ func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error
 		return fmt.Errorf("prepare binary dir: %w", err)
 	}
 
-	tmpPath := targetPath + ".tmp"
+	tmpPath := targetPath + ".download.tmp"
 	var lastErr error
 	for attempt := 1; attempt <= httpRetryAttempts; attempt++ {
 		_ = os.RemoveAll(tmpPath)
@@ -778,13 +782,9 @@ func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error
 			}
 		}
 
-		if err := os.Rename(tmpPath, targetPath); err != nil {
+		if err := m.materializeBinary(downloadURL, tmpPath, targetPath); err != nil {
 			_ = os.Remove(tmpPath)
-			lastErr = fmt.Errorf("activate new binary: %w", err)
-			break
-		}
-		if err := os.Chmod(targetPath, 0o755); err != nil {
-			lastErr = fmt.Errorf("chmod +x binary: %w", err)
+			lastErr = err
 			break
 		}
 		return nil
@@ -794,6 +794,24 @@ func (m *Manager) downloadBinary(downloadURL, targetPath, checksum string) error
 		lastErr = errors.New("download binary failed")
 	}
 	return lastErr
+}
+
+func (m *Manager) materializeBinary(downloadURL, downloadedPath, targetPath string) error {
+	urlLower := strings.ToLower(strings.TrimSpace(downloadURL))
+	switch {
+	case strings.HasSuffix(urlLower, ".zip"):
+		return extractBinaryFromZip(downloadedPath, targetPath)
+	case strings.HasSuffix(urlLower, ".tar.gz"), strings.HasSuffix(urlLower, ".tgz"):
+		return extractBinaryFromTarGz(downloadedPath, targetPath)
+	default:
+		if err := os.Rename(downloadedPath, targetPath); err != nil {
+			return fmt.Errorf("activate new binary: %w", err)
+		}
+		if err := os.Chmod(targetPath, 0o755); err != nil {
+			return fmt.Errorf("chmod +x binary: %w", err)
+		}
+		return nil
+	}
 }
 
 func (m *Manager) latestReleaseTag(repo string) (string, error) {
@@ -1005,7 +1023,13 @@ func binaryNameFromURL(downloadURL, fallback string) string {
 	if base == "" || base == "." || base == "/" {
 		return fallback
 	}
-	return base
+	name := strings.TrimSuffix(base, ".zip")
+	name = strings.TrimSuffix(name, ".tar.gz")
+	name = strings.TrimSuffix(name, ".tgz")
+	if name == "" || name == "." || name == "/" {
+		return fallback
+	}
+	return name
 }
 
 func cleanArgs(args []string) []string {
@@ -1089,4 +1113,160 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 		return err
 	}
 	return nil
+}
+
+func extractBinaryFromZip(zipPath, dstPath string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("open zip archive: %w", err)
+	}
+	defer r.Close()
+
+	idx, err := pickArchiveBinaryIndexFromZip(r.File)
+	if err != nil {
+		return err
+	}
+	f := r.File[idx]
+	rc, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("open zip member %s: %w", f.Name, err)
+	}
+	defer rc.Close()
+	return writeExecutableFromReader(rc, dstPath)
+}
+
+func extractBinaryFromTarGz(tarGzPath, dstPath string) error {
+	f, err := os.Open(tarGzPath)
+	if err != nil {
+		return fmt.Errorf("open tar.gz archive: %w", err)
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("open gzip stream: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	var selected *tar.Header
+	var selectedData []byte
+
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read tar archive: %w", err)
+		}
+		if hdr == nil || hdr.FileInfo().IsDir() {
+			continue
+		}
+		if !isLikelyExecutableArchiveEntry(filepath.Base(hdr.Name)) {
+			continue
+		}
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			return fmt.Errorf("read tar member %s: %w", hdr.Name, err)
+		}
+		if selected == nil || scoreArchiveEntry(filepath.Base(hdr.Name), hdr.FileInfo().Mode()) > scoreArchiveEntry(filepath.Base(selected.Name), selected.FileInfo().Mode()) {
+			copied := *hdr
+			selected = &copied
+			selectedData = data
+		}
+	}
+
+	if selected == nil {
+		return errors.New("archive does not contain a runnable binary file")
+	}
+	return writeExecutableFromReader(bytes.NewReader(selectedData), dstPath)
+}
+
+func pickArchiveBinaryIndexFromZip(files []*zip.File) (int, error) {
+	bestIdx := -1
+	bestScore := -1
+	for i, f := range files {
+		if f == nil || f.FileInfo().IsDir() {
+			continue
+		}
+		base := filepath.Base(f.Name)
+		if !isLikelyExecutableArchiveEntry(base) {
+			continue
+		}
+		score := scoreArchiveEntry(base, f.Mode())
+		if score > bestScore {
+			bestScore = score
+			bestIdx = i
+		}
+	}
+	if bestIdx < 0 {
+		return -1, errors.New("archive does not contain a runnable binary file")
+	}
+	return bestIdx, nil
+}
+
+func isLikelyExecutableArchiveEntry(base string) bool {
+	if strings.TrimSpace(base) == "" {
+		return false
+	}
+	l := strings.ToLower(base)
+	switch {
+	case strings.HasSuffix(l, ".txt"),
+		strings.HasSuffix(l, ".md"),
+		strings.HasSuffix(l, ".json"),
+		strings.HasSuffix(l, ".yaml"),
+		strings.HasSuffix(l, ".yml"),
+		strings.HasSuffix(l, ".toml"),
+		strings.HasSuffix(l, ".env"),
+		strings.HasSuffix(l, ".ini"),
+		strings.HasSuffix(l, ".cfg"),
+		strings.HasSuffix(l, ".conf"),
+		strings.HasSuffix(l, ".service"),
+		strings.HasSuffix(l, ".sh"),
+		strings.HasSuffix(l, ".ps1"),
+		strings.HasSuffix(l, ".zip"),
+		strings.HasSuffix(l, ".tar"),
+		strings.HasSuffix(l, ".tar.gz"),
+		strings.HasSuffix(l, ".tgz"):
+		return false
+	default:
+		return true
+	}
+}
+
+func scoreArchiveEntry(base string, mode fs.FileMode) int {
+	score := 0
+	if mode&0o111 != 0 {
+		score += 100
+	}
+	if !strings.Contains(strings.ToLower(base), "readme") {
+		score += 10
+	}
+	return score
+}
+
+func writeExecutableFromReader(r io.Reader, dstPath string) error {
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
+		return err
+	}
+	tmp := dstPath + ".tmp"
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, r); err != nil {
+		_ = out.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, dstPath); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Chmod(dstPath, 0o755)
 }
