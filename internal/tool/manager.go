@@ -3,7 +3,6 @@ package tool
 import (
 	"archive/tar"
 	"archive/zip"
-	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"database/sql"
@@ -1133,17 +1132,40 @@ func extractBinaryFromZip(zipPath, dstPath string) error {
 	}
 	defer r.Close()
 
-	idx, err := pickArchiveBinaryIndexFromZip(r.File)
-	if err != nil {
-		return err
+	rootDir := filepath.Dir(dstPath)
+	extractedFiles := make([]string, 0, len(r.File))
+	for _, f := range r.File {
+		if f == nil {
+			continue
+		}
+		rel, ok := sanitizeArchiveEntryPath(f.Name)
+		if !ok {
+			continue
+		}
+		target := filepath.Join(rootDir, rel)
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return fmt.Errorf("create dir from zip %s: %w", f.Name, err)
+			}
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return fmt.Errorf("open zip member %s: %w", f.Name, err)
+		}
+		mode := f.Mode()
+		if mode == 0 {
+			mode = 0o644
+		}
+		if err := writeFileFromReader(rc, target, mode); err != nil {
+			_ = rc.Close()
+			return fmt.Errorf("extract zip member %s: %w", f.Name, err)
+		}
+		_ = rc.Close()
+		extractedFiles = append(extractedFiles, target)
 	}
-	f := r.File[idx]
-	rc, err := f.Open()
-	if err != nil {
-		return fmt.Errorf("open zip member %s: %w", f.Name, err)
-	}
-	defer rc.Close()
-	return writeExecutableFromReader(rc, dstPath)
+
+	return ensureBinaryFromExtractedFiles(extractedFiles, dstPath)
 }
 
 func extractBinaryFromTarGz(tarGzPath, dstPath string) error {
@@ -1159,10 +1181,10 @@ func extractBinaryFromTarGz(tarGzPath, dstPath string) error {
 	}
 	defer gz.Close()
 
-	tr := tar.NewReader(gz)
-	var selected *tar.Header
-	var selectedData []byte
+	rootDir := filepath.Dir(dstPath)
+	extractedFiles := make([]string, 0, 16)
 
+	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -1171,50 +1193,88 @@ func extractBinaryFromTarGz(tarGzPath, dstPath string) error {
 		if err != nil {
 			return fmt.Errorf("read tar archive: %w", err)
 		}
-		if hdr == nil || hdr.FileInfo().IsDir() {
+		if hdr == nil {
 			continue
 		}
-		if !isLikelyExecutableArchiveEntry(filepath.Base(hdr.Name)) {
+		rel, ok := sanitizeArchiveEntryPath(hdr.Name)
+		if !ok {
 			continue
 		}
-		data, err := io.ReadAll(tr)
-		if err != nil {
-			return fmt.Errorf("read tar member %s: %w", hdr.Name, err)
-		}
-		if selected == nil || scoreArchiveEntry(filepath.Base(hdr.Name), hdr.FileInfo().Mode()) > scoreArchiveEntry(filepath.Base(selected.Name), selected.FileInfo().Mode()) {
-			copied := *hdr
-			selected = &copied
-			selectedData = data
+		target := filepath.Join(rootDir, rel)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return fmt.Errorf("create dir from tar %s: %w", hdr.Name, err)
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			mode := hdr.FileInfo().Mode()
+			if mode == 0 {
+				mode = 0o644
+			}
+			if err := writeFileFromReader(tr, target, mode); err != nil {
+				return fmt.Errorf("extract tar member %s: %w", hdr.Name, err)
+			}
+			extractedFiles = append(extractedFiles, target)
+		default:
+			// Ignore links and unsupported entry types for safety and portability.
+			continue
 		}
 	}
 
-	if selected == nil {
-		return errors.New("archive does not contain a runnable binary file")
-	}
-	return writeExecutableFromReader(bytes.NewReader(selectedData), dstPath)
+	return ensureBinaryFromExtractedFiles(extractedFiles, dstPath)
 }
 
-func pickArchiveBinaryIndexFromZip(files []*zip.File) (int, error) {
-	bestIdx := -1
+func ensureBinaryFromExtractedFiles(extractedFiles []string, dstPath string) error {
+	if _, err := os.Stat(dstPath); err == nil {
+		return os.Chmod(dstPath, 0o755)
+	}
+
+	bestPath := ""
 	bestScore := -1
-	for i, f := range files {
-		if f == nil || f.FileInfo().IsDir() {
+	preferred := strings.ToLower(filepath.Base(dstPath))
+	for _, p := range extractedFiles {
+		info, err := os.Stat(p)
+		if err != nil || info.IsDir() {
 			continue
 		}
-		base := filepath.Base(f.Name)
+		base := filepath.Base(p)
 		if !isLikelyExecutableArchiveEntry(base) {
 			continue
 		}
-		score := scoreArchiveEntry(base, f.Mode())
+		score := scoreArchiveEntry(base, info.Mode())
+		if strings.ToLower(base) == preferred {
+			score += 1000
+		}
 		if score > bestScore {
 			bestScore = score
-			bestIdx = i
+			bestPath = p
 		}
 	}
-	if bestIdx < 0 {
-		return -1, errors.New("archive does not contain a runnable binary file")
+	if bestPath == "" {
+		return errors.New("archive does not contain a runnable binary file")
 	}
-	return bestIdx, nil
+	info, err := os.Stat(bestPath)
+	if err != nil {
+		return err
+	}
+	if err := copyFile(bestPath, dstPath, info.Mode()); err != nil {
+		return err
+	}
+	return os.Chmod(dstPath, 0o755)
+}
+
+func sanitizeArchiveEntryPath(raw string) (string, bool) {
+	clean := filepath.Clean(strings.TrimSpace(raw))
+	if clean == "" || clean == "." || clean == string(filepath.Separator) {
+		return "", false
+	}
+	if filepath.IsAbs(clean) {
+		return "", false
+	}
+	if strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
+		return "", false
+	}
+	return clean, true
 }
 
 func isLikelyExecutableArchiveEntry(base string) bool {
@@ -1257,12 +1317,12 @@ func scoreArchiveEntry(base string, mode fs.FileMode) int {
 	return score
 }
 
-func writeExecutableFromReader(r io.Reader, dstPath string) error {
+func writeFileFromReader(r io.Reader, dstPath string, mode fs.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
 		return err
 	}
 	tmp := dstPath + ".tmp"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
@@ -1279,7 +1339,7 @@ func writeExecutableFromReader(r io.Reader, dstPath string) error {
 		_ = os.Remove(tmp)
 		return err
 	}
-	return os.Chmod(dstPath, 0o755)
+	return nil
 }
 
 func removeArchiveArtifacts(dir string) error {

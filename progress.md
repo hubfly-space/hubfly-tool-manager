@@ -49,3 +49,6 @@
   - installer now applies root ownership and removes obsolete hubfly sudoers file
 - Improved tool inspection:
   - `GET /tools/{name}` now returns runtime status plus persisted DB config fields for easier debugging and audit
+- Improved archive extraction behavior:
+  - zip/tar updates and registrations now extract all archive files into the tool folder
+  - extraction overwrites existing files one-by-one, without deleting unrelated existing files in that folder

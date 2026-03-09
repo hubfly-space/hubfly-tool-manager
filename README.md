@@ -13,6 +13,7 @@ Now fully database-driven:
   - optional SHA256 checksum
   - version command
   - runtime args
+- Archive downloads (`.zip`, `.tar.gz`, `.tgz`) are extracted into each tool folder, overwriting files in place without deleting unrelated existing files
 - PM2 lifecycle management:
   - start/stop/restart/provision/update
   - handles tools not yet registered in PM2
