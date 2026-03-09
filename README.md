@@ -39,6 +39,7 @@ Installer also exposes binaries globally:
 - `/usr/local/bin/htm`
 - `/usr/local/bin/hubfly-tool-manager`
 - Installer performs strict preflight checks for `node`, `npm`, and `pm2`; it stops with an error if any are missing
+- `node`, `npm`, and `pm2` must be installed system-wide (PATH-visible to non-interactive `sudo bash`; shell-only `nvm` installs are not enough)
 - Installer adds `/etc/sudoers.d/hubfly-tool-manager` so service user `hubfly` can run:
   - `systemctl daemon-reload`
   - `systemctl restart hubfly-tool-manager`

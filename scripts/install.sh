@@ -78,13 +78,41 @@ for cmd in curl tar sha256sum systemctl; do
   command -v "$cmd" >/dev/null 2>&1 || fail "$cmd is required"
 done
 
+# Normalize PATH for non-interactive sudo contexts.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:${PATH:-}"
+
+resolve_bin() {
+  local bin="$1"
+  if command -v "$bin" >/dev/null 2>&1; then
+    command -v "$bin"
+    return 0
+  fi
+  for p in "/usr/local/bin/$bin" "/usr/bin/$bin" "/bin/$bin" "/snap/bin/$bin"; do
+    if [[ -x "$p" ]]; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
 ensure_pm2_prereqs() {
-  command -v node >/dev/null 2>&1 || fail "node is required but not installed. Install Node.js first."
-  command -v npm >/dev/null 2>&1 || fail "npm is required but not installed. Install npm first."
-  command -v pm2 >/dev/null 2>&1 || fail "pm2 is required but not installed. Install pm2 first (example: npm install -g pm2)."
-  log "node detected: $(command -v node)"
-  log "npm detected: $(command -v npm)"
-  log "pm2 detected: $(command -v pm2)"
+  local node_bin npm_bin pm2_bin
+  node_bin="$(resolve_bin node || true)"
+  npm_bin="$(resolve_bin npm || true)"
+  pm2_bin="$(resolve_bin pm2 || true)"
+
+  if [[ -z "$node_bin" || -z "$npm_bin" || -z "$pm2_bin" ]]; then
+    log "Current PATH: $PATH"
+    [[ -z "$node_bin" ]] && log "node binary not found in PATH or common locations."
+    [[ -z "$npm_bin" ]] && log "npm binary not found in PATH or common locations."
+    [[ -z "$pm2_bin" ]] && log "pm2 binary not found in PATH or common locations."
+    fail "Missing runtime prerequisites. Ensure node, npm, and pm2 are installed system-wide (not shell-only via nvm)."
+  fi
+
+  log "node detected: $node_bin"
+  log "npm detected: $npm_bin"
+  log "pm2 detected: $pm2_bin"
 }
 
 TAG="${HUBFLY_VERSION:-}"
