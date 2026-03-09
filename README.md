@@ -14,6 +14,7 @@ Now fully database-driven:
   - version command
   - runtime args
 - Archive downloads (`.zip`, `.tar.gz`, `.tgz`) are extracted into each tool folder, overwriting files in place without deleting unrelated existing files
+- Direct binary downloads (non-archive URLs) are stored as executable files inside each tool folder as well
 - PM2 lifecycle management:
   - start/stop/restart/provision/update
   - handles tools not yet registered in PM2

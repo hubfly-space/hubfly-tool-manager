@@ -1039,6 +1039,10 @@ func binaryNameFromURL(downloadURL, fallback string) string {
 	if base == "" || base == "." || base == "/" {
 		return fallback
 	}
+	switch strings.ToLower(base) {
+	case "download", "latest", "release", "releases":
+		return fallback
+	}
 	return base
 }
 

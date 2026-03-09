@@ -52,3 +52,5 @@
 - Improved archive extraction behavior:
   - zip/tar updates and registrations now extract all archive files into the tool folder
   - extraction overwrites existing files one-by-one, without deleting unrelated existing files in that folder
+- Improved direct-binary URL handling:
+  - non-archive URLs with generic path names (`download`, `latest`, etc.) now resolve to stable tool binary name in that tool folder
