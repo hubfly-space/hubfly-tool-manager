@@ -542,11 +542,7 @@ func (m *Manager) mustTool(name string) (model.ToolConfig, error) {
 
 func (m *Manager) normalizeToolPaths(t model.ToolConfig) (model.ToolConfig, error) {
 	expectedDir := filepath.Join(m.cfg.ToolsDir, t.Slug)
-
-	binName := filepath.Base(strings.TrimSpace(t.BinaryPath))
-	if binName == "" || binName == "." || binName == "/" {
-		binName = binaryNameFromURL(t.DownloadURL, t.Slug)
-	}
+	binName := binaryNameFromURL(t.DownloadURL, t.Slug)
 	expectedBinary := filepath.Join(expectedDir, binName)
 
 	currentDir := filepath.Clean(strings.TrimSpace(t.ToolDir))
@@ -560,7 +556,8 @@ func (m *Manager) normalizeToolPaths(t model.ToolConfig) (model.ToolConfig, erro
 	}
 
 	// Best-effort migration of an existing binary from old path to canonical path.
-	if currentBinary != "" && currentBinary != "." && currentBinary != expectedBinary {
+	if currentBinary != "" && currentBinary != "." && currentBinary != expectedBinary &&
+		!isArchivePath(currentBinary) {
 		if _, err := os.Stat(expectedBinary); errors.Is(err, os.ErrNotExist) {
 			if _, oldErr := os.Stat(currentBinary); oldErr == nil {
 				if cpErr := copyPath(currentBinary, expectedBinary); cpErr != nil {
@@ -576,6 +573,11 @@ func (m *Manager) normalizeToolPaths(t model.ToolConfig) (model.ToolConfig, erro
 		return t, fmt.Errorf("persist normalized tool paths for %s: %w", t.Name, err)
 	}
 	return t, nil
+}
+
+func isArchivePath(path string) bool {
+	p := strings.ToLower(strings.TrimSpace(path))
+	return strings.HasSuffix(p, ".zip") || strings.HasSuffix(p, ".tar.gz") || strings.HasSuffix(p, ".tgz")
 }
 
 func (m *Manager) ensureBinary(t model.ToolConfig) error {
