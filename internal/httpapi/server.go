@@ -41,6 +41,8 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /version", s.handleManagerVersion)
+	s.mux.HandleFunc("GET /web", s.handleWeb)
+	s.mux.HandleFunc("GET /web/", s.handleWeb)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("POST /tools/register", s.handleRegister)
 	s.mux.HandleFunc("GET /tools", s.handleListTools)
@@ -73,8 +75,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Single public endpoint by design.
-		if r.Method == http.MethodGet && r.URL.Path == "/version" {
+		if r.Method == http.MethodGet && (r.URL.Path == "/version" || r.URL.Path == "/web" || r.URL.Path == "/web/") {
 			next.ServeHTTP(w, r)
 			return
 		}

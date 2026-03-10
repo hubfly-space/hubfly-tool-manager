@@ -54,3 +54,6 @@
   - extraction overwrites existing files one-by-one, without deleting unrelated existing files in that folder
 - Improved direct-binary URL handling:
   - non-archive URLs with generic path names (`download`, `latest`, etc.) now resolve to stable tool binary name in that tool folder
+- Added built-in web UI:
+  - `/web` serves a Tailwind-based dashboard from the Go binary
+  - supports manager version display, tool cards, detailed tool inspection, register tool flow, and update actions

@@ -27,6 +27,7 @@ Now fully database-driven:
 - Manager runs as a `systemd` service (not PM2) with automatic restart
 - Token-based API security (all endpoints protected except manager version check)
 - Lockdown mode after repeated invalid-token attempts (10); unlock only via local CLI
+- Built-in web UI at `/web` for live inspection and common tool operations
 
 ## Quick Install (One Line, Linux)
 
@@ -98,6 +99,12 @@ Public version check (no token required):
 ```bash
 curl -s http://127.0.0.1:10000/version
 ```
+
+Web UI:
+```bash
+open http://127.0.0.1:10000/web
+```
+The page loads without auth, then uses the token you enter in-browser for protected API calls.
 
 Initialize token locally (overwrites existing token):
 ```bash

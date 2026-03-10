@@ -20,3 +20,4 @@
 - [ ] Add per-tool concurrency locks
 - [ ] Add optional signed binary verification
 - [ ] Add explicit restore endpoint to pick backup + dry-run validation
+- [ ] Expand `/web` to cover full lifecycle controls, history/backups, and self-update
