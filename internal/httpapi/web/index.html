@@ -1,536 +1,842 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hubfly Tool Manager</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            ink: "#0f172a",
-            skycard: "#eff6ff",
-            mintcard: "#ecfeff",
-            sand: "#f8fafc",
-            accent: "#0f766e",
-            danger: "#b91c1c"
-          },
-          boxShadow: {
-            card: "0 20px 45px rgba(15, 23, 42, 0.10)"
-          }
-        }
-      }
-    };
-  </script>
-</head>
-<body class="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(13,148,136,0.12),_transparent_24%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
-  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <header class="mb-6 overflow-hidden rounded-3xl border border-white/70 bg-white/85 p-6 shadow-card backdrop-blur">
-      <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.32em] text-teal-700">Hubfly Tool Manager</p>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Operational console</h1>
-          <p class="mt-3 max-w-2xl text-sm text-slate-600">Inspect registered tools, review stored configuration, update tool source data, and check manager version from one screen.</p>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Hubfly Tool Manager</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="min-h-screen bg-zinc-50 text-zinc-900 font-sans antialiased">
+        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            <header
+                class="mb-8 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
+            >
+                <div
+                    class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"
+                >
+                    <div>
+                        <p
+                            class="text-xs font-semibold uppercase tracking-wider text-zinc-500"
+                        >
+                            Hubfly Tool Manager
+                        </p>
+                        <h1
+                            class="mt-1 text-3xl font-bold tracking-tight text-zinc-900"
+                        >
+                            Operational Console
+                        </h1>
+                        <p class="mt-2 max-w-2xl text-sm text-zinc-500">
+                            Inspect registered tools, review stored
+                            configuration, update tool source data, and check
+                            manager version.
+                        </p>
+                    </div>
+                    <div class="grid w-full gap-4 sm:grid-cols-3 lg:w-auto">
+                        <div
+                            class="rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3"
+                        >
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                            >
+                                Manager Version
+                            </p>
+                            <p
+                                id="managerVersion"
+                                class="mt-1 text-lg font-bold text-zinc-900"
+                            >
+                                Loading
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3"
+                        >
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                            >
+                                Tool Count
+                            </p>
+                            <p
+                                id="toolCount"
+                                class="mt-1 text-lg font-bold text-zinc-900"
+                            >
+                                0
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white"
+                        >
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400"
+                            >
+                                Selected Version
+                            </p>
+                            <p
+                                id="selectedVersion"
+                                class="mt-1 text-lg font-bold"
+                            >
+                                None
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="mb-8 grid gap-6 lg:grid-cols-2">
+                <div
+                    class="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
+                >
+                    <h2
+                        class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500"
+                    >
+                        Security Connection
+                    </h2>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div class="flex-1">
+                            <label
+                                for="tokenInput"
+                                class="mb-1.5 block text-xs font-medium text-zinc-700"
+                                >API Token</label
+                            >
+                            <input
+                                id="tokenInput"
+                                type="password"
+                                placeholder="Paste your secure token..."
+                                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                            />
+                        </div>
+                        <div class="flex gap-2">
+                            <button
+                                id="saveTokenButton"
+                                class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+                            >
+                                Connect
+                            </button>
+                            <button
+                                id="refreshButton"
+                                class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            >
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <p id="authHint" class="mt-4 text-xs text-zinc-500">
+                        Unauthenticated access is limited. Provide your token to
+                        enable tool management.
+                    </p>
+                </div>
+
+                <div
+                    class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
+                >
+                    <h2
+                        class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500"
+                    >
+                        Register New Tool
+                    </h2>
+                    <form id="registerForm" class="grid gap-3 sm:grid-cols-2">
+                        <input
+                            name="name"
+                            required
+                            placeholder="Tool name"
+                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                        />
+                        <input
+                            name="download_url"
+                            required
+                            placeholder="Download URL"
+                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                        />
+                        <input
+                            name="checksum"
+                            placeholder="Checksum (optional)"
+                            class="col-span-1 sm:col-span-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                        />
+                        <input
+                            name="version_command"
+                            placeholder="Version cmd (e.g. {binary},version)"
+                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                        />
+                        <input
+                            name="args"
+                            placeholder="Args CSV"
+                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                        />
+                        <button
+                            class="col-span-1 mt-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 sm:col-span-2"
+                        >
+                            Register Tool
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <div
+                id="notice"
+                class="hidden mb-6 rounded-lg border px-4 py-3 text-sm font-medium"
+            ></div>
+
+            <main class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] xl:gap-8">
+                <section
+                    class="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
+                >
+                    <div
+                        class="mb-6 flex items-center justify-between border-b border-zinc-100 pb-4"
+                    >
+                        <div>
+                            <h2 class="text-base font-bold text-zinc-900">
+                                Managed Tools
+                            </h2>
+                            <p class="mt-1 text-sm text-zinc-500">
+                                Running status and quick actions.
+                            </p>
+                        </div>
+                    </div>
+                    <div id="toolGrid" class="grid gap-4 sm:grid-cols-2"></div>
+                </section>
+
+                <section
+                    class="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
+                >
+                    <div
+                        class="mb-6 flex items-center justify-between border-b border-zinc-100 pb-4"
+                    >
+                        <div>
+                            <h2
+                                id="detailTitle"
+                                class="text-base font-bold text-zinc-900"
+                            >
+                                Tool Details
+                            </h2>
+                            <p class="mt-1 text-sm text-zinc-500">
+                                Select a tool to inspect or update.
+                            </p>
+                        </div>
+                        <button
+                            id="reloadDetailsButton"
+                            class="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                        >
+                            Reload
+                        </button>
+                    </div>
+
+                    <div
+                        id="detailEmpty"
+                        class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-10 text-center text-sm text-zinc-500"
+                    >
+                        Select a tool to inspect its stored configuration.
+                    </div>
+
+                    <div id="detailPanel" class="hidden flex-1">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div
+                                class="rounded-lg border border-zinc-100 bg-zinc-50 p-4"
+                            >
+                                <p
+                                    class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                >
+                                    Process Status
+                                </p>
+                                <p
+                                    id="detailStatus"
+                                    class="mt-1 text-sm font-bold text-zinc-900"
+                                ></p>
+                            </div>
+                            <div
+                                class="rounded-lg border border-zinc-100 bg-zinc-50 p-4"
+                            >
+                                <p
+                                    class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                >
+                                    Current Version
+                                </p>
+                                <p
+                                    id="detailVersion"
+                                    class="mt-1 text-sm font-bold text-zinc-900"
+                                ></p>
+                            </div>
+                        </div>
+
+                        <dl class="mt-6 grid gap-4 text-sm">
+                            <div class="rounded-lg border border-zinc-200 p-4">
+                                <dt
+                                    class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                >
+                                    Download URL
+                                </dt>
+                                <dd
+                                    id="detailDownloadURL"
+                                    class="mt-1 break-all font-mono text-zinc-800"
+                                ></dd>
+                            </div>
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <div
+                                    class="rounded-lg border border-zinc-200 p-4"
+                                >
+                                    <dt
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                    >
+                                        Checksum
+                                    </dt>
+                                    <dd
+                                        id="detailChecksum"
+                                        class="mt-1 break-all font-mono text-zinc-800"
+                                    ></dd>
+                                </div>
+                                <div
+                                    class="rounded-lg border border-zinc-200 p-4"
+                                >
+                                    <dt
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                    >
+                                        Identifier (Slug)
+                                    </dt>
+                                    <dd
+                                        id="detailSlug"
+                                        class="mt-1 break-all font-mono text-zinc-800"
+                                    ></dd>
+                                </div>
+                            </div>
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <div
+                                    class="rounded-lg border border-zinc-200 p-4"
+                                >
+                                    <dt
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                    >
+                                        Tool Directory
+                                    </dt>
+                                    <dd
+                                        id="detailToolDir"
+                                        class="mt-1 break-all font-mono text-zinc-800"
+                                    ></dd>
+                                </div>
+                                <div
+                                    class="rounded-lg border border-zinc-200 p-4"
+                                >
+                                    <dt
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                    >
+                                        Binary Path
+                                    </dt>
+                                    <dd
+                                        id="detailBinaryPath"
+                                        class="mt-1 break-all font-mono text-zinc-800"
+                                    ></dd>
+                                </div>
+                            </div>
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <div
+                                    class="rounded-lg border border-zinc-200 p-4"
+                                >
+                                    <dt
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                    >
+                                        Execution Args
+                                    </dt>
+                                    <dd
+                                        id="detailArgs"
+                                        class="mt-1 break-words font-mono text-zinc-800"
+                                    ></dd>
+                                </div>
+                                <div
+                                    class="rounded-lg border border-zinc-200 p-4"
+                                >
+                                    <dt
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
+                                    >
+                                        Version Command
+                                    </dt>
+                                    <dd
+                                        id="detailVersionCommand"
+                                        class="mt-1 break-words font-mono text-zinc-800"
+                                    ></dd>
+                                </div>
+                            </div>
+                        </dl>
+
+                        <form
+                            id="updateForm"
+                            class="mt-8 border-t border-zinc-200 pt-6"
+                        >
+                            <div
+                                class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <div>
+                                    <h3 class="text-sm font-bold text-zinc-900">
+                                        Update Configuration
+                                    </h3>
+                                    <p class="text-xs text-zinc-500">
+                                        Modify metadata or force a sync.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    id="manualUpdateButton"
+                                    class="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                >
+                                    Run Update Now
+                                </button>
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <input
+                                    name="download_url"
+                                    placeholder="New download URL"
+                                    class="col-span-1 sm:col-span-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                />
+                                <input
+                                    name="checksum"
+                                    placeholder="New checksum (leave blank to keep)"
+                                    class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                />
+                                <input
+                                    name="version_command"
+                                    placeholder="New version command CSV"
+                                    class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                />
+                                <input
+                                    name="args"
+                                    placeholder="New args CSV"
+                                    class="col-span-1 sm:col-span-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                />
+                            </div>
+                            <button
+                                class="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 sm:w-auto"
+                            >
+                                Save & Update
+                            </button>
+                        </form>
+                    </div>
+                </section>
+            </main>
         </div>
-        <div class="grid gap-3 sm:grid-cols-3">
-          <div class="rounded-2xl bg-skycard px-4 py-3">
-            <p class="text-xs font-medium uppercase tracking-[0.2em] text-sky-800">Manager Version</p>
-            <p id="managerVersion" class="mt-2 text-lg font-semibold text-ink">Loading</p>
-          </div>
-          <div class="rounded-2xl bg-mintcard px-4 py-3">
-            <p class="text-xs font-medium uppercase tracking-[0.2em] text-teal-800">Tool Count</p>
-            <p id="toolCount" class="mt-2 text-lg font-semibold text-ink">0</p>
-          </div>
-          <div class="rounded-2xl bg-slate-900 px-4 py-3 text-white">
-            <p class="text-xs font-medium uppercase tracking-[0.2em] text-slate-300">Selected Version</p>
-            <p id="selectedVersion" class="mt-2 text-lg font-semibold">None</p>
-          </div>
-        </div>
-      </div>
-    </header>
 
-    <section class="mb-6 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-      <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-end">
-          <div class="flex-1">
-            <label for="tokenInput" class="mb-2 block text-sm font-medium text-slate-700">Security token</label>
-            <input id="tokenInput" type="password" placeholder="Paste API token" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 transition focus:border-teal-500">
-          </div>
-          <div class="flex gap-3">
-            <button id="saveTokenButton" class="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Connect</button>
-            <button id="refreshButton" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400">Refresh</button>
-          </div>
-        </div>
-        <p id="authHint" class="mt-3 text-sm text-slate-500">The page loads without auth. Tool data and actions use the token you enter here.</p>
-      </div>
+        <script>
+            const state = {
+                token: localStorage.getItem("htm.web.token") || "",
+                tools: [],
+                selectedName: "",
+                selectedDetail: null,
+            };
 
-      <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur">
-        <h2 class="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Register Tool</h2>
-        <form id="registerForm" class="mt-4 grid gap-3">
-          <input name="name" required placeholder="Tool name" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500">
-          <input name="download_url" required placeholder="Download URL" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500">
-          <input name="checksum" placeholder="Checksum (optional)" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500">
-          <input name="version_command" placeholder="Version command CSV, e.g. {binary},version" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500">
-          <input name="args" placeholder="Args CSV" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500">
-          <button class="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800">Register</button>
-        </form>
-      </div>
-    </section>
+            const els = {
+                tokenInput: document.getElementById("tokenInput"),
+                saveTokenButton: document.getElementById("saveTokenButton"),
+                refreshButton: document.getElementById("refreshButton"),
+                registerForm: document.getElementById("registerForm"),
+                notice: document.getElementById("notice"),
+                managerVersion: document.getElementById("managerVersion"),
+                toolCount: document.getElementById("toolCount"),
+                selectedVersion: document.getElementById("selectedVersion"),
+                toolGrid: document.getElementById("toolGrid"),
+                detailEmpty: document.getElementById("detailEmpty"),
+                detailPanel: document.getElementById("detailPanel"),
+                detailTitle: document.getElementById("detailTitle"),
+                detailStatus: document.getElementById("detailStatus"),
+                detailVersion: document.getElementById("detailVersion"),
+                detailDownloadURL: document.getElementById("detailDownloadURL"),
+                detailChecksum: document.getElementById("detailChecksum"),
+                detailSlug: document.getElementById("detailSlug"),
+                detailToolDir: document.getElementById("detailToolDir"),
+                detailBinaryPath: document.getElementById("detailBinaryPath"),
+                detailArgs: document.getElementById("detailArgs"),
+                detailVersionCommand: document.getElementById(
+                    "detailVersionCommand",
+                ),
+                updateForm: document.getElementById("updateForm"),
+                manualUpdateButton:
+                    document.getElementById("manualUpdateButton"),
+                reloadDetailsButton: document.getElementById(
+                    "reloadDetailsButton",
+                ),
+                authHint: document.getElementById("authHint"),
+            };
 
-    <section class="mb-4">
-      <div id="notice" class="hidden rounded-2xl px-4 py-3 text-sm font-medium"></div>
-    </section>
+            els.tokenInput.value = state.token;
 
-    <main class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <section class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur">
-        <div class="mb-4 flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-ink">Tools</h2>
-            <p class="text-sm text-slate-500">Running status, stored version, and quick actions.</p>
-          </div>
-        </div>
-        <div id="toolGrid" class="grid gap-4 md:grid-cols-2"></div>
-      </section>
+            function csvToList(value) {
+                return value
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean);
+            }
 
-      <section class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur">
-        <div class="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h2 id="detailTitle" class="text-lg font-semibold text-ink">Tool details</h2>
-            <p class="text-sm text-slate-500">Select a tool card to inspect configuration and update it.</p>
-          </div>
-          <button id="reloadDetailsButton" class="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400">Reload</button>
-        </div>
+            function showNotice(message, tone) {
+                els.notice.className =
+                    "mb-6 rounded-lg px-4 py-3 text-sm font-medium border";
+                if (tone === "error") {
+                    els.notice.classList.add(
+                        "bg-red-50",
+                        "text-red-800",
+                        "border-red-200",
+                    );
+                } else {
+                    els.notice.classList.add(
+                        "bg-zinc-100",
+                        "text-zinc-900",
+                        "border-zinc-200",
+                    );
+                }
+                els.notice.textContent = message;
+                els.notice.classList.remove("hidden");
+            }
 
-        <div id="detailEmpty" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">Select a tool to inspect its stored config.</div>
+            function clearNotice() {
+                els.notice.classList.add("hidden");
+            }
 
-        <div id="detailPanel" class="hidden">
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div class="rounded-2xl bg-slate-50 p-4">
-              <p class="text-xs uppercase tracking-[0.2em] text-slate-500">PM2 Status</p>
-              <p id="detailStatus" class="mt-2 text-base font-semibold text-ink"></p>
-            </div>
-            <div class="rounded-2xl bg-slate-50 p-4">
-              <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Version</p>
-              <p id="detailVersion" class="mt-2 text-base font-semibold text-ink"></p>
-            </div>
-          </div>
+            async function api(path, options = {}) {
+                const headers = new Headers(options.headers || {});
+                if (state.token) {
+                    headers.set("Authorization", "Bearer " + state.token);
+                }
+                if (options.body && !headers.has("Content-Type")) {
+                    headers.set("Content-Type", "application/json");
+                }
+                const response = await fetch(path, { ...options, headers });
+                let payload = null;
+                try {
+                    payload = await response.json();
+                } catch (_) {
+                    payload = null;
+                }
+                if (!response.ok) {
+                    const message =
+                        payload && payload.error
+                            ? payload.error
+                            : "Request failed";
+                    throw new Error(message);
+                }
+                return payload;
+            }
 
-          <dl class="mt-4 grid gap-3">
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
-              <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Download URL</dt>
-              <dd id="detailDownloadURL" class="mt-2 break-all text-sm text-slate-800"></dd>
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Checksum</dt>
-                <dd id="detailChecksum" class="mt-2 break-all text-sm text-slate-800"></dd>
-              </div>
-              <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Slug</dt>
-                <dd id="detailSlug" class="mt-2 break-all text-sm text-slate-800"></dd>
-              </div>
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Tool Directory</dt>
-                <dd id="detailToolDir" class="mt-2 break-all text-sm text-slate-800"></dd>
-              </div>
-              <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Binary Path</dt>
-                <dd id="detailBinaryPath" class="mt-2 break-all text-sm text-slate-800"></dd>
-              </div>
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Args</dt>
-                <dd id="detailArgs" class="mt-2 whitespace-pre-wrap break-words text-sm text-slate-800"></dd>
-              </div>
-              <div class="rounded-2xl border border-slate-200 bg-white p-4">
-                <dt class="text-xs uppercase tracking-[0.2em] text-slate-500">Version Command</dt>
-                <dd id="detailVersionCommand" class="mt-2 whitespace-pre-wrap break-words text-sm text-slate-800"></dd>
-              </div>
-            </div>
-          </dl>
+            async function loadManagerVersion() {
+                try {
+                    const payload = await api("/version");
+                    els.managerVersion.textContent =
+                        payload.version || "unknown";
+                } catch (_) {
+                    els.managerVersion.textContent = "unavailable";
+                }
+            }
 
-          <form id="updateForm" class="mt-5 grid gap-3 rounded-3xl bg-slate-900 p-5 text-white">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <h3 class="text-base font-semibold">Update this tool</h3>
-                <p class="text-sm text-slate-300">Change source metadata and apply the update immediately.</p>
-              </div>
-              <button type="button" id="manualUpdateButton" class="rounded-2xl border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:border-slate-400">Run Update</button>
-            </div>
-            <input name="download_url" placeholder="New download URL" class="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-teal-400">
-            <input name="checksum" placeholder="New checksum or leave blank to keep current" class="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-teal-400">
-            <input name="version_command" placeholder="New version command CSV" class="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-teal-400">
-            <input name="args" placeholder="New args CSV" class="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-teal-400">
-            <button class="rounded-2xl bg-teal-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-400">Save and Update</button>
-          </form>
-        </div>
-      </section>
-    </main>
-  </div>
+            function statusTone(status) {
+                switch ((status || "").toLowerCase()) {
+                    case "online":
+                        return "bg-green-50 text-green-700 border-green-200";
+                    case "errored":
+                        return "bg-red-50 text-red-700 border-red-200";
+                    case "stopped":
+                    case "not_managed":
+                        return "bg-yellow-50 text-yellow-700 border-yellow-200";
+                    default:
+                        return "bg-zinc-100 text-zinc-700 border-zinc-200";
+                }
+            }
 
-  <script>
-    const state = {
-      token: localStorage.getItem("htm.web.token") || "",
-      tools: [],
-      selectedName: "",
-      selectedDetail: null
-    };
+            function renderTools() {
+                els.toolCount.textContent = String(state.tools.length);
+                if (!state.tools.length) {
+                    els.toolGrid.innerHTML =
+                        '<div class="col-span-1 sm:col-span-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No tools loaded. Connect with a token and refresh.</div>';
+                    return;
+                }
 
-    const els = {
-      tokenInput: document.getElementById("tokenInput"),
-      saveTokenButton: document.getElementById("saveTokenButton"),
-      refreshButton: document.getElementById("refreshButton"),
-      registerForm: document.getElementById("registerForm"),
-      notice: document.getElementById("notice"),
-      managerVersion: document.getElementById("managerVersion"),
-      toolCount: document.getElementById("toolCount"),
-      selectedVersion: document.getElementById("selectedVersion"),
-      toolGrid: document.getElementById("toolGrid"),
-      detailEmpty: document.getElementById("detailEmpty"),
-      detailPanel: document.getElementById("detailPanel"),
-      detailTitle: document.getElementById("detailTitle"),
-      detailStatus: document.getElementById("detailStatus"),
-      detailVersion: document.getElementById("detailVersion"),
-      detailDownloadURL: document.getElementById("detailDownloadURL"),
-      detailChecksum: document.getElementById("detailChecksum"),
-      detailSlug: document.getElementById("detailSlug"),
-      detailToolDir: document.getElementById("detailToolDir"),
-      detailBinaryPath: document.getElementById("detailBinaryPath"),
-      detailArgs: document.getElementById("detailArgs"),
-      detailVersionCommand: document.getElementById("detailVersionCommand"),
-      updateForm: document.getElementById("updateForm"),
-      manualUpdateButton: document.getElementById("manualUpdateButton"),
-      reloadDetailsButton: document.getElementById("reloadDetailsButton"),
-      authHint: document.getElementById("authHint")
-    };
-
-    els.tokenInput.value = state.token;
-
-    function csvToList(value) {
-      return value.split(",").map((item) => item.trim()).filter(Boolean);
-    }
-
-    function showNotice(message, tone) {
-      els.notice.className = "rounded-2xl px-4 py-3 text-sm font-medium";
-      if (tone === "error") {
-        els.notice.classList.add("bg-red-50", "text-red-700", "border", "border-red-200");
-      } else {
-        els.notice.classList.add("bg-teal-50", "text-teal-800", "border", "border-teal-200");
-      }
-      els.notice.textContent = message;
-      els.notice.classList.remove("hidden");
-    }
-
-    function clearNotice() {
-      els.notice.classList.add("hidden");
-    }
-
-    async function api(path, options = {}) {
-      const headers = new Headers(options.headers || {});
-      if (state.token) {
-        headers.set("Authorization", "Bearer " + state.token);
-      }
-      if (options.body && !headers.has("Content-Type")) {
-        headers.set("Content-Type", "application/json");
-      }
-      const response = await fetch(path, { ...options, headers });
-      let payload = null;
-      try {
-        payload = await response.json();
-      } catch (_) {
-        payload = null;
-      }
-      if (!response.ok) {
-        const message = payload && payload.error ? payload.error : "Request failed";
-        throw new Error(message);
-      }
-      return payload;
-    }
-
-    async function loadManagerVersion() {
-      try {
-        const payload = await api("/version");
-        els.managerVersion.textContent = payload.version || "unknown";
-      } catch (_) {
-        els.managerVersion.textContent = "unavailable";
-      }
-    }
-
-    function statusTone(status) {
-      switch ((status || "").toLowerCase()) {
-        case "online":
-          return "bg-emerald-50 text-emerald-700 border-emerald-200";
-        case "errored":
-          return "bg-red-50 text-red-700 border-red-200";
-        case "stopped":
-        case "not_managed":
-          return "bg-amber-50 text-amber-700 border-amber-200";
-        default:
-          return "bg-slate-100 text-slate-700 border-slate-200";
-      }
-    }
-
-    function renderTools() {
-      els.toolCount.textContent = String(state.tools.length);
-      if (!state.tools.length) {
-        els.toolGrid.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 md:col-span-2">No tools loaded. Connect with a token and refresh.</div>';
-        return;
-      }
-
-      els.toolGrid.innerHTML = state.tools.map((tool) => {
-        const active = tool.name === state.selectedName ? "ring-2 ring-teal-500" : "";
-        return `
-          <button data-tool-name="${escapeHTML(tool.name)}" class="tool-card rounded-3xl border border-white/80 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-card ${active}">
+                els.toolGrid.innerHTML = state.tools
+                    .map((tool) => {
+                        const active =
+                            tool.name === state.selectedName
+                                ? "ring-2 ring-zinc-900 border-zinc-900"
+                                : "border-zinc-200 hover:border-zinc-300 hover:shadow-md";
+                        return `
+          <button data-tool-name="${escapeHTML(tool.name)}" class="tool-card w-full rounded-xl border bg-white p-5 text-left shadow-sm transition ${active}">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-lg font-semibold text-ink">${escapeHTML(tool.name)}</p>
-                <p class="mt-1 text-sm text-slate-500">${escapeHTML(tool.version || "unknown")}</p>
+                <p class="text-base font-bold text-zinc-900">${escapeHTML(tool.name)}</p>
+                <p class="mt-0.5 font-mono text-xs text-zinc-500">${escapeHTML(tool.version || "unknown")}</p>
               </div>
-              <span class="rounded-full border px-3 py-1 text-xs font-semibold ${statusTone(tool.pm2_status)}">${escapeHTML(tool.pm2_status || "unknown")}</span>
+              <span class="rounded bg-white border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusTone(tool.pm2_status)}">${escapeHTML(tool.pm2_status || "unknown")}</span>
             </div>
-            <div class="mt-4 flex gap-2">
-              <button data-action="start" data-tool-name="${escapeHTML(tool.name)}" class="tool-action rounded-2xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400">Start</button>
-              <button data-action="restart" data-tool-name="${escapeHTML(tool.name)}" class="tool-action rounded-2xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400">Restart</button>
-              <button data-action="update" data-tool-name="${escapeHTML(tool.name)}" class="tool-action rounded-2xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Update</button>
+            <div class="mt-5 flex gap-2">
+              <button data-action="start" data-tool-name="${escapeHTML(tool.name)}" class="tool-action flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[11px] font-semibold text-zinc-700 transition hover:border-zinc-300 hover:bg-white">Start</button>
+              <button data-action="restart" data-tool-name="${escapeHTML(tool.name)}" class="tool-action flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[11px] font-semibold text-zinc-700 transition hover:border-zinc-300 hover:bg-white">Restart</button>
+              <button data-action="update" data-tool-name="${escapeHTML(tool.name)}" class="tool-action flex-1 rounded-lg bg-zinc-900 px-2 py-1.5 text-[11px] font-semibold text-white transition hover:bg-zinc-800">Update</button>
             </div>
           </button>
         `;
-      }).join("");
+                    })
+                    .join("");
 
-      document.querySelectorAll(".tool-card").forEach((node) => {
-        node.addEventListener("click", (event) => {
-          if (event.target.closest(".tool-action")) {
-            return;
-          }
-          selectTool(node.dataset.toolName);
-        });
-      });
+                document.querySelectorAll(".tool-card").forEach((node) => {
+                    node.addEventListener("click", (event) => {
+                        if (event.target.closest(".tool-action")) {
+                            return;
+                        }
+                        selectTool(node.dataset.toolName);
+                    });
+                });
 
-      document.querySelectorAll(".tool-action").forEach((node) => {
-        node.addEventListener("click", async (event) => {
-          event.stopPropagation();
-          const name = node.dataset.toolName;
-          const action = node.dataset.action;
-          try {
-            clearNotice();
-            await api("/tools/" + encodeURIComponent(name) + "/" + action, {
-              method: "POST",
-              body: JSON.stringify({})
+                document.querySelectorAll(".tool-action").forEach((node) => {
+                    node.addEventListener("click", async (event) => {
+                        event.stopPropagation();
+                        const name = node.dataset.toolName;
+                        const action = node.dataset.action;
+                        try {
+                            clearNotice();
+                            await api(
+                                "/tools/" +
+                                    encodeURIComponent(name) +
+                                    "/" +
+                                    action,
+                                {
+                                    method: "POST",
+                                    body: JSON.stringify({}),
+                                },
+                            );
+                            showNotice(
+                                action + " accepted for " + name,
+                                "success",
+                            );
+                            await refreshAll(name);
+                        } catch (error) {
+                            showNotice(error.message, "error");
+                        }
+                    });
+                });
+            }
+
+            function renderDetail() {
+                const detail = state.selectedDetail;
+                if (!detail) {
+                    els.detailEmpty.classList.remove("hidden");
+                    els.detailPanel.classList.add("hidden");
+                    els.detailTitle.textContent = "Tool Details";
+                    els.selectedVersion.textContent = "None";
+                    return;
+                }
+
+                els.detailEmpty.classList.add("hidden");
+                els.detailPanel.classList.remove("hidden");
+                els.detailTitle.textContent = detail.name;
+                els.selectedVersion.textContent = detail.version || "unknown";
+                els.detailStatus.textContent = detail.pm2_status || "unknown";
+                els.detailVersion.textContent = detail.version || "unknown";
+                els.detailDownloadURL.textContent =
+                    detail.download_url || "n/a";
+                els.detailChecksum.textContent = detail.checksum || "not set";
+                els.detailSlug.textContent = detail.slug || "n/a";
+                els.detailToolDir.textContent = detail.tool_dir || "n/a";
+                els.detailBinaryPath.textContent = detail.binary_path || "n/a";
+                els.detailArgs.textContent =
+                    (detail.args || []).join(", ") || "none";
+                els.detailVersionCommand.textContent =
+                    (detail.version_command || []).join(", ") || "none";
+            }
+
+            async function loadTools() {
+                const payload = await api("/tools");
+                state.tools = payload.tools || [];
+                renderTools();
+            }
+
+            async function loadToolDetail(name) {
+                const payload = await api("/tools/" + encodeURIComponent(name));
+                state.selectedDetail = payload;
+                renderDetail();
+            }
+
+            async function selectTool(name) {
+                state.selectedName = name;
+                renderTools();
+                await loadToolDetail(name);
+            }
+
+            async function refreshAll(preferredName) {
+                await loadTools();
+                const nextName =
+                    preferredName ||
+                    state.selectedName ||
+                    (state.tools[0] && state.tools[0].name);
+                if (nextName) {
+                    state.selectedName = nextName;
+                    await loadToolDetail(nextName);
+                    renderTools();
+                } else {
+                    state.selectedDetail = null;
+                    renderDetail();
+                }
+            }
+
+            function escapeHTML(value) {
+                return String(value)
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll('"', "&quot;")
+                    .replaceAll("'", "&#39;");
+            }
+
+            els.saveTokenButton.addEventListener("click", async () => {
+                state.token = els.tokenInput.value.trim();
+                localStorage.setItem("htm.web.token", state.token);
+                els.authHint.textContent = state.token
+                    ? "Token saved in this browser. Refreshing tool state now."
+                    : "Token cleared. Protected API calls will fail until a token is provided.";
+                try {
+                    clearNotice();
+                    if (state.token) {
+                        await refreshAll(state.selectedName);
+                        showNotice("Connected successfully", "success");
+                    } else {
+                        state.tools = [];
+                        state.selectedDetail = null;
+                        renderTools();
+                        renderDetail();
+                    }
+                } catch (error) {
+                    showNotice(error.message, "error");
+                }
             });
-            showNotice(action + " accepted for " + name, "success");
-            await refreshAll(name);
-          } catch (error) {
-            showNotice(error.message, "error");
-          }
-        });
-      });
-    }
 
-    function renderDetail() {
-      const detail = state.selectedDetail;
-      if (!detail) {
-        els.detailEmpty.classList.remove("hidden");
-        els.detailPanel.classList.add("hidden");
-        els.detailTitle.textContent = "Tool details";
-        els.selectedVersion.textContent = "None";
-        return;
-      }
+            els.refreshButton.addEventListener("click", async () => {
+                try {
+                    clearNotice();
+                    await refreshAll(state.selectedName);
+                } catch (error) {
+                    showNotice(error.message, "error");
+                }
+            });
 
-      els.detailEmpty.classList.add("hidden");
-      els.detailPanel.classList.remove("hidden");
-      els.detailTitle.textContent = detail.name;
-      els.selectedVersion.textContent = detail.version || "unknown";
-      els.detailStatus.textContent = detail.pm2_status || "unknown";
-      els.detailVersion.textContent = detail.version || "unknown";
-      els.detailDownloadURL.textContent = detail.download_url || "n/a";
-      els.detailChecksum.textContent = detail.checksum || "not set";
-      els.detailSlug.textContent = detail.slug || "n/a";
-      els.detailToolDir.textContent = detail.tool_dir || "n/a";
-      els.detailBinaryPath.textContent = detail.binary_path || "n/a";
-      els.detailArgs.textContent = (detail.args || []).join(", ") || "none";
-      els.detailVersionCommand.textContent = (detail.version_command || []).join(", ") || "none";
-    }
+            els.reloadDetailsButton.addEventListener("click", async () => {
+                if (!state.selectedName) {
+                    return;
+                }
+                try {
+                    clearNotice();
+                    await loadToolDetail(state.selectedName);
+                    showNotice("Tool details refreshed", "success");
+                } catch (error) {
+                    showNotice(error.message, "error");
+                }
+            });
 
-    async function loadTools() {
-      const payload = await api("/tools");
-      state.tools = payload.tools || [];
-      renderTools();
-    }
+            els.manualUpdateButton.addEventListener("click", async () => {
+                if (!state.selectedName) {
+                    showNotice("Select a tool first", "error");
+                    return;
+                }
+                try {
+                    clearNotice();
+                    await api(
+                        "/tools/" +
+                            encodeURIComponent(state.selectedName) +
+                            "/update",
+                        {
+                            method: "POST",
+                            body: JSON.stringify({}),
+                        },
+                    );
+                    showNotice(
+                        "Update started for " + state.selectedName,
+                        "success",
+                    );
+                    await refreshAll(state.selectedName);
+                } catch (error) {
+                    showNotice(error.message, "error");
+                }
+            });
 
-    async function loadToolDetail(name) {
-      const payload = await api("/tools/" + encodeURIComponent(name));
-      state.selectedDetail = payload;
-      renderDetail();
-    }
+            els.updateForm.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                if (!state.selectedName) {
+                    showNotice("Select a tool first", "error");
+                    return;
+                }
 
-    async function selectTool(name) {
-      state.selectedName = name;
-      renderTools();
-      await loadToolDetail(name);
-    }
+                const formData = new FormData(els.updateForm);
+                const body = {};
+                const downloadURL = String(
+                    formData.get("download_url") || "",
+                ).trim();
+                const checksum = String(formData.get("checksum") || "");
+                const versionCommand = String(
+                    formData.get("version_command") || "",
+                ).trim();
+                const args = String(formData.get("args") || "").trim();
 
-    async function refreshAll(preferredName) {
-      await loadTools();
-      const nextName = preferredName || state.selectedName || (state.tools[0] && state.tools[0].name);
-      if (nextName) {
-        state.selectedName = nextName;
-        await loadToolDetail(nextName);
-        renderTools();
-      } else {
-        state.selectedDetail = null;
-        renderDetail();
-      }
-    }
+                if (downloadURL) body.download_url = downloadURL;
+                if (checksum !== "") body.checksum = checksum.trim();
+                if (versionCommand)
+                    body.version_command = csvToList(versionCommand);
+                if (args) body.args = csvToList(args);
 
-    function escapeHTML(value) {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-    }
+                if (Object.keys(body).length === 0) {
+                    showNotice("Provide at least one field to change", "error");
+                    return;
+                }
 
-    els.saveTokenButton.addEventListener("click", async () => {
-      state.token = els.tokenInput.value.trim();
-      localStorage.setItem("htm.web.token", state.token);
-      els.authHint.textContent = state.token ? "Token saved in this browser. Refreshing tool state now." : "Token cleared. Protected API calls will fail until a token is provided.";
-      try {
-        clearNotice();
-        if (state.token) {
-          await refreshAll(state.selectedName);
-          showNotice("Connected successfully", "success");
-        } else {
-          state.tools = [];
-          state.selectedDetail = null;
-          renderTools();
-          renderDetail();
-        }
-      } catch (error) {
-        showNotice(error.message, "error");
-      }
-    });
+                try {
+                    clearNotice();
+                    await api(
+                        "/tools/" +
+                            encodeURIComponent(state.selectedName) +
+                            "/configure-update",
+                        {
+                            method: "POST",
+                            body: JSON.stringify(body),
+                        },
+                    );
+                    els.updateForm.reset();
+                    showNotice("Tool updated successfully", "success");
+                    await refreshAll(state.selectedName);
+                } catch (error) {
+                    showNotice(error.message, "error");
+                }
+            });
 
-    els.refreshButton.addEventListener("click", async () => {
-      try {
-        clearNotice();
-        await refreshAll(state.selectedName);
-      } catch (error) {
-        showNotice(error.message, "error");
-      }
-    });
+            els.registerForm.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const formData = new FormData(els.registerForm);
+                const body = {
+                    name: String(formData.get("name") || "").trim(),
+                    download_url: String(
+                        formData.get("download_url") || "",
+                    ).trim(),
+                };
 
-    els.reloadDetailsButton.addEventListener("click", async () => {
-      if (!state.selectedName) {
-        return;
-      }
-      try {
-        clearNotice();
-        await loadToolDetail(state.selectedName);
-        showNotice("Tool details refreshed", "success");
-      } catch (error) {
-        showNotice(error.message, "error");
-      }
-    });
+                const checksum = String(formData.get("checksum") || "");
+                const versionCommand = String(
+                    formData.get("version_command") || "",
+                ).trim();
+                const args = String(formData.get("args") || "").trim();
 
-    els.manualUpdateButton.addEventListener("click", async () => {
-      if (!state.selectedName) {
-        showNotice("Select a tool first", "error");
-        return;
-      }
-      try {
-        clearNotice();
-        await api("/tools/" + encodeURIComponent(state.selectedName) + "/update", {
-          method: "POST",
-          body: JSON.stringify({})
-        });
-        showNotice("Update started for " + state.selectedName, "success");
-        await refreshAll(state.selectedName);
-      } catch (error) {
-        showNotice(error.message, "error");
-      }
-    });
+                if (checksum.trim()) body.checksum = checksum.trim();
+                if (versionCommand)
+                    body.version_command = csvToList(versionCommand);
+                if (args) body.args = csvToList(args);
 
-    els.updateForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!state.selectedName) {
-        showNotice("Select a tool first", "error");
-        return;
-      }
+                try {
+                    clearNotice();
+                    await api("/tools/register", {
+                        method: "POST",
+                        body: JSON.stringify(body),
+                    });
+                    els.registerForm.reset();
+                    showNotice("Tool registered successfully", "success");
+                    await refreshAll(body.name);
+                } catch (error) {
+                    showNotice(error.message, "error");
+                }
+            });
 
-      const formData = new FormData(els.updateForm);
-      const body = {};
-      const downloadURL = String(formData.get("download_url") || "").trim();
-      const checksum = String(formData.get("checksum") || "");
-      const versionCommand = String(formData.get("version_command") || "").trim();
-      const args = String(formData.get("args") || "").trim();
-
-      if (downloadURL) body.download_url = downloadURL;
-      if (checksum !== "") body.checksum = checksum.trim();
-      if (versionCommand) body.version_command = csvToList(versionCommand);
-      if (args) body.args = csvToList(args);
-
-      if (Object.keys(body).length === 0) {
-        showNotice("Provide at least one field to change", "error");
-        return;
-      }
-
-      try {
-        clearNotice();
-        await api("/tools/" + encodeURIComponent(state.selectedName) + "/configure-update", {
-          method: "POST",
-          body: JSON.stringify(body)
-        });
-        els.updateForm.reset();
-        showNotice("Tool updated successfully", "success");
-        await refreshAll(state.selectedName);
-      } catch (error) {
-        showNotice(error.message, "error");
-      }
-    });
-
-    els.registerForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const formData = new FormData(els.registerForm);
-      const body = {
-        name: String(formData.get("name") || "").trim(),
-        download_url: String(formData.get("download_url") || "").trim()
-      };
-
-      const checksum = String(formData.get("checksum") || "");
-      const versionCommand = String(formData.get("version_command") || "").trim();
-      const args = String(formData.get("args") || "").trim();
-
-      if (checksum.trim()) body.checksum = checksum.trim();
-      if (versionCommand) body.version_command = csvToList(versionCommand);
-      if (args) body.args = csvToList(args);
-
-      try {
-        clearNotice();
-        await api("/tools/register", {
-          method: "POST",
-          body: JSON.stringify(body)
-        });
-        els.registerForm.reset();
-        showNotice("Tool registered successfully", "success");
-        await refreshAll(body.name);
-      } catch (error) {
-        showNotice(error.message, "error");
-      }
-    });
-
-    loadManagerVersion();
-    if (state.token) {
-      refreshAll().catch((error) => showNotice(error.message, "error"));
-    } else {
-      renderTools();
-      renderDetail();
-    }
-  </script>
-</body>
+            loadManagerVersion();
+            if (state.token) {
+                refreshAll().catch((error) =>
+                    showNotice(error.message, "error"),
+                );
+            } else {
+                renderTools();
+                renderDetail();
+            }
+        </script>
+    </body>
 </html>
