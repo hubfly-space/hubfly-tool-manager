@@ -4,410 +4,853 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Hubfly Tool Manager</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            :root {
+                --bg: #f7f7f6;
+                --surface: #ffffff;
+                --border: #e4e4e0;
+                --border-strong: #c8c8c0;
+                --ink: #111110;
+                --ink-2: #3c3c38;
+                --ink-3: #888880;
+                --ink-4: #b4b4ac;
+                --accent: #111110;
+                --accent-fg: #ffffff;
+                --red: #c0392b;
+                --red-bg: #fef2f0;
+                --red-border: #f5c6c0;
+                --green: #1a7f4e;
+                --green-bg: #f0faf5;
+                --green-border: #b8e8cf;
+                --amber: #946800;
+                --amber-bg: #fefbec;
+                --amber-border: #f0e0a0;
+                --font-body: "Instrument Sans", sans-serif;
+                --font-mono: "IBM Plex Mono", monospace;
+                --r: 6px;
+                --r-lg: 10px;
+            }
+
+            html,
+            body {
+                height: 100%;
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--font-body);
+                font-size: 13px;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            /* ─── Layout ─── */
+            .shell {
+                display: grid;
+                grid-template-rows: auto auto 1fr;
+                min-height: 100vh;
+                max-width: 1300px;
+                margin: 0 auto;
+                padding: 20px 20px 32px;
+                gap: 12px;
+            }
+
+            /* ─── Topbar ─── */
+            .topbar {
+                display: grid;
+                grid-template-columns: 1fr auto;
+                align-items: center;
+                gap: 16px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r-lg);
+                padding: 14px 20px;
+            }
+            .topbar-left {
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+            }
+            .topbar-eyebrow {
+                font-family: var(--font-mono);
+                font-size: 10px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--ink-3);
+            }
+            .topbar-title {
+                font-size: 16px;
+                font-weight: 700;
+                color: var(--ink);
+                letter-spacing: -0.01em;
+            }
+            .topbar-right {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .stat-chip {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 10px;
+                border: 1px solid var(--border);
+                border-radius: var(--r);
+                background: var(--bg);
+            }
+            .stat-chip-label {
+                font-family: var(--font-mono);
+                font-size: 10px;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: var(--ink-3);
+            }
+            .stat-chip-value {
+                font-family: var(--font-mono);
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .stat-chip-value.selected-ver {
+                font-family: var(--font-mono);
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .stat-chip.dark {
+                background: var(--ink);
+                border-color: var(--ink);
+            }
+            .stat-chip.dark .stat-chip-label {
+                color: #888;
+            }
+            .stat-chip.dark .stat-chip-value {
+                color: #fff;
+            }
+
+            /* ─── Control row ─── */
+            .control-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            @media (max-width: 700px) {
+                .control-row {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .card {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r-lg);
+                padding: 16px 18px;
+            }
+            .card-label {
+                font-family: var(--font-mono);
+                font-size: 9.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--ink-3);
+                margin-bottom: 10px;
+            }
+
+            /* ─── Auth card ─── */
+            .auth-row {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+            }
+            .auth-hint {
+                margin-top: 8px;
+                font-size: 11px;
+                color: var(--ink-3);
+                font-family: var(--font-mono);
+            }
+
+            /* ─── Register form ─── */
+            .reg-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+            .reg-grid .span2 {
+                grid-column: 1 / -1;
+            }
+
+            /* ─── Inputs / Buttons ─── */
+            input[type="text"],
+            input[type="password"],
+            input:not([type]) {
+                height: 32px;
+                padding: 0 10px;
+                font-family: var(--font-body);
+                font-size: 12px;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--r);
+                color: var(--ink);
+                outline: none;
+                width: 100%;
+                transition:
+                    border-color 0.12s,
+                    box-shadow 0.12s;
+            }
+            input:focus {
+                border-color: var(--ink);
+                box-shadow: 0 0 0 2px rgba(17, 17, 16, 0.07);
+                background: var(--surface);
+            }
+            input::placeholder {
+                color: var(--ink-4);
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                height: 32px;
+                padding: 0 14px;
+                font-family: var(--font-body);
+                font-size: 12px;
+                font-weight: 600;
+                border-radius: var(--r);
+                cursor: pointer;
+                border: 1px solid transparent;
+                transition:
+                    background 0.1s,
+                    border-color 0.1s,
+                    opacity 0.1s;
+                white-space: nowrap;
+            }
+            .btn-primary {
+                background: var(--accent);
+                color: var(--accent-fg);
+                border-color: var(--accent);
+            }
+            .btn-primary:hover {
+                background: #2a2a28;
+            }
+            .btn-ghost {
+                background: var(--bg);
+                color: var(--ink-2);
+                border-color: var(--border);
+            }
+            .btn-ghost:hover {
+                background: #eeeeed;
+                border-color: var(--border-strong);
+            }
+            .btn-sm {
+                height: 26px;
+                padding: 0 10px;
+                font-size: 11px;
+            }
+            .btn-full {
+                width: 100%;
+            }
+
+            /* ─── Notice ─── */
+            #notice {
+                display: none;
+                padding: 9px 14px;
+                border-radius: var(--r);
+                font-size: 12px;
+                font-family: var(--font-mono);
+                font-weight: 500;
+                border: 1px solid;
+                animation: slide-in 0.15s ease;
+            }
+            #notice.notice-error {
+                background: var(--red-bg);
+                color: var(--red);
+                border-color: var(--red-border);
+            }
+            #notice.notice-success {
+                background: var(--green-bg);
+                color: var(--green);
+                border-color: var(--green-border);
+            }
+            @keyframes slide-in {
+                from {
+                    opacity: 0;
+                    transform: translateY(-4px);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+
+            /* ─── Main split ─── */
+            .main-split {
+                display: grid;
+                grid-template-columns: 380px 1fr;
+                gap: 10px;
+                min-height: 0;
+            }
+            @media (max-width: 900px) {
+                .main-split {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            /* ─── Tools panel ─── */
+            .panel {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r-lg);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            .panel-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 16px 12px;
+                border-bottom: 1px solid var(--border);
+            }
+            .panel-head-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--ink);
+            }
+            .panel-head-sub {
+                font-size: 11px;
+                color: var(--ink-3);
+                margin-top: 1px;
+            }
+            .panel-body {
+                flex: 1;
+                overflow-y: auto;
+                padding: 10px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            /* ─── Tool card ─── */
+            .tool-card {
+                position: relative;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--r);
+                padding: 11px 12px 10px;
+                cursor: pointer;
+                transition:
+                    border-color 0.1s,
+                    box-shadow 0.1s,
+                    background 0.1s;
+                text-align: left;
+                width: 100%;
+            }
+            .tool-card:hover {
+                border-color: var(--border-strong);
+                background: #f2f2f0;
+            }
+            .tool-card.active {
+                border-color: var(--ink);
+                background: var(--surface);
+                box-shadow: 0 1px 6px rgba(17, 17, 16, 0.08);
+            }
+            .tool-card-top {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 8px;
+                margin-bottom: 8px;
+            }
+            .tool-card-name {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--ink);
+                line-height: 1.3;
+            }
+            .tool-card-ver {
+                font-family: var(--font-mono);
+                font-size: 10px;
+                color: var(--ink-3);
+                margin-top: 1px;
+            }
+            .tool-card-actions {
+                display: flex;
+                gap: 4px;
+                margin-top: 2px;
+            }
+            .tool-action {
+                flex: 1;
+                height: 24px;
+                padding: 0 8px;
+                font-family: var(--font-body);
+                font-size: 10.5px;
+                font-weight: 600;
+                border-radius: 4px;
+                cursor: pointer;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                color: var(--ink-2);
+                transition:
+                    background 0.1s,
+                    border-color 0.1s;
+            }
+            .tool-action:hover {
+                background: #eeeeed;
+                border-color: var(--border-strong);
+            }
+            .tool-action.update-btn {
+                background: var(--ink);
+                color: #fff;
+                border-color: var(--ink);
+            }
+            .tool-action.update-btn:hover {
+                background: #333;
+            }
+
+            /* ─── Status badge ─── */
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 7px;
+                border-radius: 3px;
+                font-family: var(--font-mono);
+                font-size: 9.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                border: 1px solid;
+                white-space: nowrap;
+            }
+            .badge::before {
+                content: "";
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
+            .badge-online {
+                background: var(--green-bg);
+                color: var(--green);
+                border-color: var(--green-border);
+            }
+            .badge-online::before {
+                background: var(--green);
+            }
+            .badge-errored {
+                background: var(--red-bg);
+                color: var(--red);
+                border-color: var(--red-border);
+            }
+            .badge-errored::before {
+                background: var(--red);
+            }
+            .badge-stopped,
+            .badge-not_managed {
+                background: var(--amber-bg);
+                color: var(--amber);
+                border-color: var(--amber-border);
+            }
+            .badge-stopped::before,
+            .badge-not_managed::before {
+                background: var(--amber);
+            }
+            .badge-unknown {
+                background: #f4f4f2;
+                color: var(--ink-3);
+                border-color: var(--border);
+            }
+            .badge-unknown::before {
+                background: var(--ink-4);
+            }
+
+            /* ─── Detail panel ─── */
+            .detail-scroll {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+
+            .detail-empty {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 40px;
+                text-align: center;
+                font-size: 12px;
+                color: var(--ink-4);
+                font-family: var(--font-mono);
+            }
+
+            /* ─── Meta grid ─── */
+            .meta-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+            .meta-row.single {
+                grid-template-columns: 1fr;
+            }
+            .meta-item {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--r);
+                padding: 9px 11px;
+            }
+            .meta-key {
+                font-family: var(--font-mono);
+                font-size: 9px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--ink-3);
+                margin-bottom: 3px;
+            }
+            .meta-val {
+                font-family: var(--font-mono);
+                font-size: 11.5px;
+                color: var(--ink);
+                word-break: break-all;
+                line-height: 1.4;
+            }
+            .meta-val.muted {
+                color: var(--ink-3);
+            }
+
+            /* ─── Divider ─── */
+            .divider {
+                border: none;
+                border-top: 1px solid var(--border);
+                margin: 2px 0;
+            }
+
+            /* ─── Update form ─── */
+            .update-form-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+            .update-form-grid .span2 {
+                grid-column: 1 / -1;
+            }
+            .update-form-actions {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+            .update-form-title {
+                font-size: 12px;
+                font-weight: 700;
+                color: var(--ink);
+            }
+            .update-form-sub {
+                font-size: 11px;
+                color: var(--ink-3);
+                margin-top: 1px;
+            }
+
+            /* ─── Empty state ─── */
+            .tools-empty {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 40px;
+                text-align: center;
+                font-size: 11.5px;
+                color: var(--ink-4);
+                font-family: var(--font-mono);
+                border: 1px dashed var(--border);
+                border-radius: var(--r);
+                margin: 4px;
+            }
+
+            /* ─── Scrollbar ─── */
+            ::-webkit-scrollbar {
+                width: 5px;
+                height: 5px;
+            }
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: var(--border-strong);
+                border-radius: 99px;
+            }
+        </style>
     </head>
-    <body class="min-h-screen bg-zinc-50 text-zinc-900 font-sans antialiased">
-        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-            <header
-                class="mb-8 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
-            >
-                <div
-                    class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"
-                >
-                    <div>
-                        <p
-                            class="text-xs font-semibold uppercase tracking-wider text-zinc-500"
+    <body>
+        <div class="shell">
+            <!-- ── Topbar ── -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <span class="topbar-eyebrow">Hubfly</span>
+                    <span class="topbar-title">Tool Manager</span>
+                </div>
+                <div class="topbar-right">
+                    <div class="stat-chip">
+                        <span class="stat-chip-label">Version</span>
+                        <span id="managerVersion" class="stat-chip-value"
+                            >—</span
                         >
-                            Hubfly Tool Manager
-                        </p>
-                        <h1
-                            class="mt-1 text-3xl font-bold tracking-tight text-zinc-900"
-                        >
-                            Operational Console
-                        </h1>
-                        <p class="mt-2 max-w-2xl text-sm text-zinc-500">
-                            Inspect registered tools, review stored
-                            configuration, update tool source data, and check
-                            manager version.
-                        </p>
                     </div>
-                    <div class="grid w-full gap-4 sm:grid-cols-3 lg:w-auto">
-                        <div
-                            class="rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3"
+                    <div class="stat-chip">
+                        <span class="stat-chip-label">Tools</span>
+                        <span id="toolCount" class="stat-chip-value">0</span>
+                    </div>
+                    <div class="stat-chip dark">
+                        <span class="stat-chip-label">Selected</span>
+                        <span id="selectedVersion" class="stat-chip-value"
+                            >None</span
                         >
-                            <p
-                                class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                            >
-                                Manager Version
-                            </p>
-                            <p
-                                id="managerVersion"
-                                class="mt-1 text-lg font-bold text-zinc-900"
-                            >
-                                Loading
-                            </p>
-                        </div>
-                        <div
-                            class="rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3"
-                        >
-                            <p
-                                class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                            >
-                                Tool Count
-                            </p>
-                            <p
-                                id="toolCount"
-                                class="mt-1 text-lg font-bold text-zinc-900"
-                            >
-                                0
-                            </p>
-                        </div>
-                        <div
-                            class="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white"
-                        >
-                            <p
-                                class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400"
-                            >
-                                Selected Version
-                            </p>
-                            <p
-                                id="selectedVersion"
-                                class="mt-1 text-lg font-bold"
-                            >
-                                None
-                            </p>
-                        </div>
                     </div>
                 </div>
             </header>
 
-            <section class="mb-8 grid gap-6 lg:grid-cols-2">
-                <div
-                    class="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
-                >
-                    <h2
-                        class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500"
-                    >
-                        Security Connection
-                    </h2>
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                        <div class="flex-1">
-                            <label
-                                for="tokenInput"
-                                class="mb-1.5 block text-xs font-medium text-zinc-700"
-                                >API Token</label
-                            >
-                            <input
-                                id="tokenInput"
-                                type="password"
-                                placeholder="Paste your secure token..."
-                                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                            />
-                        </div>
-                        <div class="flex gap-2">
-                            <button
-                                id="saveTokenButton"
-                                class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
-                            >
-                                Connect
-                            </button>
-                            <button
-                                id="refreshButton"
-                                class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-                            >
-                                Refresh
-                            </button>
-                        </div>
+            <!-- ── Control row ── -->
+            <div class="control-row">
+                <!-- Auth -->
+                <div class="card">
+                    <p class="card-label">Security Connection</p>
+                    <div class="auth-row">
+                        <input
+                            id="tokenInput"
+                            type="password"
+                            placeholder="Paste your API token…"
+                            style="flex: 1"
+                        />
+                        <button id="saveTokenButton" class="btn btn-primary">
+                            Connect
+                        </button>
+                        <button id="refreshButton" class="btn btn-ghost">
+                            Refresh
+                        </button>
                     </div>
-                    <p id="authHint" class="mt-4 text-xs text-zinc-500">
-                        Unauthenticated access is limited. Provide your token to
-                        enable tool management.
+                    <p id="authHint" class="auth-hint">
+                        Unauthenticated — provide a token to enable tool
+                        management.
                     </p>
                 </div>
 
-                <div
-                    class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
-                >
-                    <h2
-                        class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500"
-                    >
-                        Register New Tool
-                    </h2>
-                    <form id="registerForm" class="grid gap-3 sm:grid-cols-2">
-                        <input
-                            name="name"
-                            required
-                            placeholder="Tool name"
-                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                        />
-                        <input
-                            name="download_url"
-                            required
-                            placeholder="Download URL"
-                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                        />
-                        <input
-                            name="checksum"
-                            placeholder="Checksum (optional)"
-                            class="col-span-1 sm:col-span-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                        />
-                        <input
-                            name="version_command"
-                            placeholder="Version cmd (e.g. {binary},version)"
-                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                        />
-                        <input
-                            name="args"
-                            placeholder="Args CSV"
-                            class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
-                        />
-                        <button
-                            class="col-span-1 mt-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 sm:col-span-2"
-                        >
-                            Register Tool
-                        </button>
+                <!-- Register -->
+                <div class="card">
+                    <p class="card-label">Register New Tool</p>
+                    <form id="registerForm">
+                        <div class="reg-grid">
+                            <input
+                                name="name"
+                                required
+                                placeholder="Tool name"
+                            />
+                            <input
+                                name="download_url"
+                                required
+                                placeholder="Download URL"
+                            />
+                            <input
+                                name="checksum"
+                                placeholder="Checksum (optional)"
+                                class="span2"
+                            />
+                            <input
+                                name="version_command"
+                                placeholder="Version cmd (e.g. {binary},version)"
+                            />
+                            <input name="args" placeholder="Args CSV" />
+                            <button
+                                type="submit"
+                                class="btn btn-primary btn-full span2"
+                            >
+                                Register Tool
+                            </button>
+                        </div>
                     </form>
                 </div>
-            </section>
+            </div>
 
-            <div
-                id="notice"
-                class="hidden mb-6 rounded-lg border px-4 py-3 text-sm font-medium"
-            ></div>
+            <!-- ── Notice ── -->
+            <div id="notice"></div>
 
-            <main class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] xl:gap-8">
-                <section
-                    class="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
-                >
-                    <div
-                        class="mb-6 flex items-center justify-between border-b border-zinc-100 pb-4"
-                    >
+            <!-- ── Main split ── -->
+            <div class="main-split">
+                <!-- Tools list -->
+                <div class="panel">
+                    <div class="panel-head">
                         <div>
-                            <h2 class="text-base font-bold text-zinc-900">
-                                Managed Tools
-                            </h2>
-                            <p class="mt-1 text-sm text-zinc-500">
-                                Running status and quick actions.
-                            </p>
+                            <div class="panel-head-title">Managed Tools</div>
+                            <div class="panel-head-sub">
+                                Status, version &amp; quick actions
+                            </div>
                         </div>
                     </div>
-                    <div id="toolGrid" class="grid gap-4 sm:grid-cols-2"></div>
-                </section>
+                    <div class="panel-body" id="toolGrid"></div>
+                </div>
 
-                <section
-                    class="flex flex-col rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
-                >
-                    <div
-                        class="mb-6 flex items-center justify-between border-b border-zinc-100 pb-4"
-                    >
+                <!-- Detail panel -->
+                <div class="panel">
+                    <div class="panel-head">
                         <div>
-                            <h2
-                                id="detailTitle"
-                                class="text-base font-bold text-zinc-900"
-                            >
+                            <div class="panel-head-title" id="detailTitle">
                                 Tool Details
-                            </h2>
-                            <p class="mt-1 text-sm text-zinc-500">
-                                Select a tool to inspect or update.
-                            </p>
+                            </div>
+                            <div class="panel-head-sub">
+                                Select a tool to inspect its configuration.
+                            </div>
                         </div>
                         <button
                             id="reloadDetailsButton"
-                            class="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            class="btn btn-ghost btn-sm"
                         >
                             Reload
                         </button>
                     </div>
 
-                    <div
-                        id="detailEmpty"
-                        class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-10 text-center text-sm text-zinc-500"
-                    >
-                        Select a tool to inspect its stored configuration.
+                    <div id="detailEmpty" class="detail-empty">
+                        ← Select a tool to inspect its stored configuration.
                     </div>
 
-                    <div id="detailPanel" class="hidden flex-1">
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <div
-                                class="rounded-lg border border-zinc-100 bg-zinc-50 p-4"
-                            >
-                                <p
-                                    class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                >
-                                    Process Status
-                                </p>
-                                <p
-                                    id="detailStatus"
-                                    class="mt-1 text-sm font-bold text-zinc-900"
-                                ></p>
+                    <div
+                        id="detailPanel"
+                        class="detail-scroll"
+                        style="display: none"
+                    >
+                        <!-- Status + Version -->
+                        <div class="meta-row">
+                            <div class="meta-item">
+                                <div class="meta-key">Process Status</div>
+                                <div id="detailStatus" class="meta-val"></div>
                             </div>
-                            <div
-                                class="rounded-lg border border-zinc-100 bg-zinc-50 p-4"
-                            >
-                                <p
-                                    class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                >
-                                    Current Version
-                                </p>
-                                <p
-                                    id="detailVersion"
-                                    class="mt-1 text-sm font-bold text-zinc-900"
-                                ></p>
+                            <div class="meta-item">
+                                <div class="meta-key">Current Version</div>
+                                <div id="detailVersion" class="meta-val"></div>
                             </div>
                         </div>
 
-                        <dl class="mt-6 grid gap-4 text-sm">
-                            <div class="rounded-lg border border-zinc-200 p-4">
-                                <dt
-                                    class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                >
-                                    Download URL
-                                </dt>
-                                <dd
+                        <!-- Download URL -->
+                        <div class="meta-row single">
+                            <div class="meta-item">
+                                <div class="meta-key">Download URL</div>
+                                <div
                                     id="detailDownloadURL"
-                                    class="mt-1 break-all font-mono text-zinc-800"
-                                ></dd>
+                                    class="meta-val"
+                                ></div>
                             </div>
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <div
-                                    class="rounded-lg border border-zinc-200 p-4"
-                                >
-                                    <dt
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                    >
-                                        Checksum
-                                    </dt>
-                                    <dd
-                                        id="detailChecksum"
-                                        class="mt-1 break-all font-mono text-zinc-800"
-                                    ></dd>
-                                </div>
-                                <div
-                                    class="rounded-lg border border-zinc-200 p-4"
-                                >
-                                    <dt
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                    >
-                                        Identifier (Slug)
-                                    </dt>
-                                    <dd
-                                        id="detailSlug"
-                                        class="mt-1 break-all font-mono text-zinc-800"
-                                    ></dd>
-                                </div>
-                            </div>
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <div
-                                    class="rounded-lg border border-zinc-200 p-4"
-                                >
-                                    <dt
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                    >
-                                        Tool Directory
-                                    </dt>
-                                    <dd
-                                        id="detailToolDir"
-                                        class="mt-1 break-all font-mono text-zinc-800"
-                                    ></dd>
-                                </div>
-                                <div
-                                    class="rounded-lg border border-zinc-200 p-4"
-                                >
-                                    <dt
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                    >
-                                        Binary Path
-                                    </dt>
-                                    <dd
-                                        id="detailBinaryPath"
-                                        class="mt-1 break-all font-mono text-zinc-800"
-                                    ></dd>
-                                </div>
-                            </div>
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <div
-                                    class="rounded-lg border border-zinc-200 p-4"
-                                >
-                                    <dt
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                    >
-                                        Execution Args
-                                    </dt>
-                                    <dd
-                                        id="detailArgs"
-                                        class="mt-1 break-words font-mono text-zinc-800"
-                                    ></dd>
-                                </div>
-                                <div
-                                    class="rounded-lg border border-zinc-200 p-4"
-                                >
-                                    <dt
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500"
-                                    >
-                                        Version Command
-                                    </dt>
-                                    <dd
-                                        id="detailVersionCommand"
-                                        class="mt-1 break-words font-mono text-zinc-800"
-                                    ></dd>
-                                </div>
-                            </div>
-                        </dl>
+                        </div>
 
-                        <form
-                            id="updateForm"
-                            class="mt-8 border-t border-zinc-200 pt-6"
-                        >
-                            <div
-                                class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-                            >
+                        <!-- Checksum + Slug -->
+                        <div class="meta-row">
+                            <div class="meta-item">
+                                <div class="meta-key">Checksum</div>
+                                <div id="detailChecksum" class="meta-val"></div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-key">Identifier (Slug)</div>
+                                <div id="detailSlug" class="meta-val"></div>
+                            </div>
+                        </div>
+
+                        <!-- Tool Dir + Binary -->
+                        <div class="meta-row">
+                            <div class="meta-item">
+                                <div class="meta-key">Tool Directory</div>
+                                <div id="detailToolDir" class="meta-val"></div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-key">Binary Path</div>
+                                <div
+                                    id="detailBinaryPath"
+                                    class="meta-val"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <!-- Args + Version Command -->
+                        <div class="meta-row">
+                            <div class="meta-item">
+                                <div class="meta-key">Execution Args</div>
+                                <div id="detailArgs" class="meta-val"></div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-key">Version Command</div>
+                                <div
+                                    id="detailVersionCommand"
+                                    class="meta-val"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <hr class="divider" />
+
+                        <!-- Update form -->
+                        <form id="updateForm">
+                            <div class="update-form-actions">
                                 <div>
-                                    <h3 class="text-sm font-bold text-zinc-900">
+                                    <div class="update-form-title">
                                         Update Configuration
-                                    </h3>
-                                    <p class="text-xs text-zinc-500">
+                                    </div>
+                                    <div class="update-form-sub">
                                         Modify metadata or force a sync.
-                                    </p>
+                                    </div>
                                 </div>
                                 <button
                                     type="button"
                                     id="manualUpdateButton"
-                                    class="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                    class="btn btn-ghost btn-sm"
                                 >
                                     Run Update Now
                                 </button>
                             </div>
-                            <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="update-form-grid">
                                 <input
                                     name="download_url"
                                     placeholder="New download URL"
-                                    class="col-span-1 sm:col-span-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                    class="span2"
                                 />
                                 <input
                                     name="checksum"
-                                    placeholder="New checksum (leave blank to keep)"
-                                    class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                    placeholder="New checksum (blank = keep)"
                                 />
                                 <input
                                     name="version_command"
                                     placeholder="New version command CSV"
-                                    class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
                                 />
                                 <input
                                     name="args"
                                     placeholder="New args CSV"
-                                    class="col-span-1 sm:col-span-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900"
+                                    class="span2"
                                 />
+                                <button
+                                    type="submit"
+                                    class="btn btn-primary span2"
+                                    style="margin-top: 2px"
+                                >
+                                    Save &amp; Update
+                                </button>
                             </div>
-                            <button
-                                class="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 sm:w-auto"
-                            >
-                                Save & Update
-                            </button>
                         </form>
                     </div>
-                </section>
-            </main>
+                </div>
+            </div>
         </div>
 
         <script>
@@ -453,131 +896,121 @@
 
             els.tokenInput.value = state.token;
 
+            /* ── Helpers ── */
             function csvToList(value) {
                 return value
                     .split(",")
-                    .map((item) => item.trim())
+                    .map((s) => s.trim())
                     .filter(Boolean);
             }
 
+            function escapeHTML(v) {
+                return String(v)
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll('"', "&quot;")
+                    .replaceAll("'", "&#39;");
+            }
+
+            function badgeClass(status) {
+                const s = (status || "").toLowerCase().replace(/[^a-z_]/g, "");
+                const map = {
+                    online: "badge-online",
+                    errored: "badge-errored",
+                    stopped: "badge-stopped",
+                    not_managed: "badge-not_managed",
+                };
+                return "badge " + (map[s] || "badge-unknown");
+            }
+
+            let noticeTimer = null;
             function showNotice(message, tone) {
                 els.notice.className =
-                    "mb-6 rounded-lg px-4 py-3 text-sm font-medium border";
-                if (tone === "error") {
-                    els.notice.classList.add(
-                        "bg-red-50",
-                        "text-red-800",
-                        "border-red-200",
-                    );
-                } else {
-                    els.notice.classList.add(
-                        "bg-zinc-100",
-                        "text-zinc-900",
-                        "border-zinc-200",
-                    );
-                }
+                    tone === "error" ? "notice-error" : "notice-success";
                 els.notice.textContent = message;
-                els.notice.classList.remove("hidden");
+                els.notice.style.display = "block";
+                clearTimeout(noticeTimer);
+                noticeTimer = setTimeout(() => {
+                    els.notice.style.display = "none";
+                }, 4000);
             }
-
             function clearNotice() {
-                els.notice.classList.add("hidden");
+                clearTimeout(noticeTimer);
+                els.notice.style.display = "none";
             }
 
+            /* ── API ── */
             async function api(path, options = {}) {
                 const headers = new Headers(options.headers || {});
-                if (state.token) {
+                if (state.token)
                     headers.set("Authorization", "Bearer " + state.token);
-                }
-                if (options.body && !headers.has("Content-Type")) {
+                if (options.body && !headers.has("Content-Type"))
                     headers.set("Content-Type", "application/json");
-                }
                 const response = await fetch(path, { ...options, headers });
                 let payload = null;
                 try {
                     payload = await response.json();
-                } catch (_) {
-                    payload = null;
-                }
-                if (!response.ok) {
-                    const message =
-                        payload && payload.error
-                            ? payload.error
-                            : "Request failed";
-                    throw new Error(message);
-                }
+                } catch (_) {}
+                if (!response.ok)
+                    throw new Error(payload?.error || "Request failed");
                 return payload;
             }
 
+            /* ── Load version ── */
             async function loadManagerVersion() {
                 try {
                     const payload = await api("/version");
                     els.managerVersion.textContent =
                         payload.version || "unknown";
                 } catch (_) {
-                    els.managerVersion.textContent = "unavailable";
+                    els.managerVersion.textContent = "n/a";
                 }
             }
 
-            function statusTone(status) {
-                switch ((status || "").toLowerCase()) {
-                    case "online":
-                        return "bg-green-50 text-green-700 border-green-200";
-                    case "errored":
-                        return "bg-red-50 text-red-700 border-red-200";
-                    case "stopped":
-                    case "not_managed":
-                        return "bg-yellow-50 text-yellow-700 border-yellow-200";
-                    default:
-                        return "bg-zinc-100 text-zinc-700 border-zinc-200";
-                }
-            }
-
+            /* ── Render tools ── */
             function renderTools() {
                 els.toolCount.textContent = String(state.tools.length);
+
                 if (!state.tools.length) {
                     els.toolGrid.innerHTML =
-                        '<div class="col-span-1 sm:col-span-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No tools loaded. Connect with a token and refresh.</div>';
+                        '<div class="tools-empty">No tools loaded.<br>Connect with a token and refresh.</div>';
                     return;
                 }
 
                 els.toolGrid.innerHTML = state.tools
                     .map((tool) => {
                         const active =
-                            tool.name === state.selectedName
-                                ? "ring-2 ring-zinc-900 border-zinc-900"
-                                : "border-zinc-200 hover:border-zinc-300 hover:shadow-md";
+                            tool.name === state.selectedName ? "active" : "";
+                        const badge = `<span class="${badgeClass(tool.pm2_status)}">${escapeHTML(tool.pm2_status || "unknown")}</span>`;
                         return `
-          <button data-tool-name="${escapeHTML(tool.name)}" class="tool-card w-full rounded-xl border bg-white p-5 text-left shadow-sm transition ${active}">
-            <div class="flex items-start justify-between gap-3">
+          <button data-tool-name="${escapeHTML(tool.name)}" class="tool-card ${active}">
+            <div class="tool-card-top">
               <div>
-                <p class="text-base font-bold text-zinc-900">${escapeHTML(tool.name)}</p>
-                <p class="mt-0.5 font-mono text-xs text-zinc-500">${escapeHTML(tool.version || "unknown")}</p>
+                <div class="tool-card-name">${escapeHTML(tool.name)}</div>
+                <div class="tool-card-ver">${escapeHTML(tool.version || "unknown")}</div>
               </div>
-              <span class="rounded bg-white border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusTone(tool.pm2_status)}">${escapeHTML(tool.pm2_status || "unknown")}</span>
+              ${badge}
             </div>
-            <div class="mt-5 flex gap-2">
-              <button data-action="start" data-tool-name="${escapeHTML(tool.name)}" class="tool-action flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[11px] font-semibold text-zinc-700 transition hover:border-zinc-300 hover:bg-white">Start</button>
-              <button data-action="restart" data-tool-name="${escapeHTML(tool.name)}" class="tool-action flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[11px] font-semibold text-zinc-700 transition hover:border-zinc-300 hover:bg-white">Restart</button>
-              <button data-action="update" data-tool-name="${escapeHTML(tool.name)}" class="tool-action flex-1 rounded-lg bg-zinc-900 px-2 py-1.5 text-[11px] font-semibold text-white transition hover:bg-zinc-800">Update</button>
+            <div class="tool-card-actions">
+              <button data-action="start"   data-tool-name="${escapeHTML(tool.name)}" class="tool-action">Start</button>
+              <button data-action="restart" data-tool-name="${escapeHTML(tool.name)}" class="tool-action">Restart</button>
+              <button data-action="update"  data-tool-name="${escapeHTML(tool.name)}" class="tool-action update-btn">Update</button>
             </div>
-          </button>
-        `;
+          </button>`;
                     })
                     .join("");
 
                 document.querySelectorAll(".tool-card").forEach((node) => {
-                    node.addEventListener("click", (event) => {
-                        if (event.target.closest(".tool-action")) {
-                            return;
-                        }
+                    node.addEventListener("click", (e) => {
+                        if (e.target.closest(".tool-action")) return;
                         selectTool(node.dataset.toolName);
                     });
                 });
 
                 document.querySelectorAll(".tool-action").forEach((node) => {
-                    node.addEventListener("click", async (event) => {
-                        event.stopPropagation();
+                    node.addEventListener("click", async (e) => {
+                        e.stopPropagation();
                         const name = node.dataset.toolName;
                         const action = node.dataset.action;
                         try {
@@ -587,51 +1020,57 @@
                                     encodeURIComponent(name) +
                                     "/" +
                                     action,
-                                {
-                                    method: "POST",
-                                    body: JSON.stringify({}),
-                                },
+                                { method: "POST", body: JSON.stringify({}) },
                             );
                             showNotice(
                                 action + " accepted for " + name,
                                 "success",
                             );
                             await refreshAll(name);
-                        } catch (error) {
-                            showNotice(error.message, "error");
+                        } catch (err) {
+                            showNotice(err.message, "error");
                         }
                     });
                 });
             }
 
+            /* ── Render detail ── */
             function renderDetail() {
-                const detail = state.selectedDetail;
-                if (!detail) {
-                    els.detailEmpty.classList.remove("hidden");
-                    els.detailPanel.classList.add("hidden");
+                const d = state.selectedDetail;
+                if (!d) {
+                    els.detailEmpty.style.display = "flex";
+                    els.detailPanel.style.display = "none";
                     els.detailTitle.textContent = "Tool Details";
                     els.selectedVersion.textContent = "None";
                     return;
                 }
+                els.detailEmpty.style.display = "none";
+                els.detailPanel.style.display = "flex";
+                els.detailTitle.textContent = d.name;
+                els.selectedVersion.textContent = d.version || "unknown";
 
-                els.detailEmpty.classList.add("hidden");
-                els.detailPanel.classList.remove("hidden");
-                els.detailTitle.textContent = detail.name;
-                els.selectedVersion.textContent = detail.version || "unknown";
-                els.detailStatus.textContent = detail.pm2_status || "unknown";
-                els.detailVersion.textContent = detail.version || "unknown";
-                els.detailDownloadURL.textContent =
-                    detail.download_url || "n/a";
-                els.detailChecksum.textContent = detail.checksum || "not set";
-                els.detailSlug.textContent = detail.slug || "n/a";
-                els.detailToolDir.textContent = detail.tool_dir || "n/a";
-                els.detailBinaryPath.textContent = detail.binary_path || "n/a";
-                els.detailArgs.textContent =
-                    (detail.args || []).join(", ") || "none";
-                els.detailVersionCommand.textContent =
-                    (detail.version_command || []).join(", ") || "none";
+                const set = (id, val, fallback = "n/a") => {
+                    const el = document.getElementById(id);
+                    el.textContent = val || fallback;
+                    el.classList.toggle("muted", !val);
+                };
+
+                set("detailStatus", d.pm2_status);
+                set("detailVersion", d.version);
+                set("detailDownloadURL", d.download_url);
+                set("detailChecksum", d.checksum, "not set");
+                set("detailSlug", d.slug);
+                set("detailToolDir", d.tool_dir);
+                set("detailBinaryPath", d.binary_path);
+                set("detailArgs", (d.args || []).join(", "), "none");
+                set(
+                    "detailVersionCommand",
+                    (d.version_command || []).join(", "),
+                    "none",
+                );
             }
 
+            /* ── Data loading ── */
             async function loadTools() {
                 const payload = await api("/tools");
                 state.tools = payload.tools || [];
@@ -653,9 +1092,7 @@
             async function refreshAll(preferredName) {
                 await loadTools();
                 const nextName =
-                    preferredName ||
-                    state.selectedName ||
-                    (state.tools[0] && state.tools[0].name);
+                    preferredName || state.selectedName || state.tools[0]?.name;
                 if (nextName) {
                     state.selectedName = nextName;
                     await loadToolDetail(nextName);
@@ -666,21 +1103,13 @@
                 }
             }
 
-            function escapeHTML(value) {
-                return String(value)
-                    .replaceAll("&", "&amp;")
-                    .replaceAll("<", "&lt;")
-                    .replaceAll(">", "&gt;")
-                    .replaceAll('"', "&quot;")
-                    .replaceAll("'", "&#39;");
-            }
-
+            /* ── Events ── */
             els.saveTokenButton.addEventListener("click", async () => {
                 state.token = els.tokenInput.value.trim();
                 localStorage.setItem("htm.web.token", state.token);
                 els.authHint.textContent = state.token
-                    ? "Token saved in this browser. Refreshing tool state now."
-                    : "Token cleared. Protected API calls will fail until a token is provided.";
+                    ? "Token saved. Refreshing tool state…"
+                    : "Token cleared. Protected calls will fail without a token.";
                 try {
                     clearNotice();
                     if (state.token) {
@@ -692,8 +1121,8 @@
                         renderTools();
                         renderDetail();
                     }
-                } catch (error) {
-                    showNotice(error.message, "error");
+                } catch (err) {
+                    showNotice(err.message, "error");
                 }
             });
 
@@ -701,21 +1130,19 @@
                 try {
                     clearNotice();
                     await refreshAll(state.selectedName);
-                } catch (error) {
-                    showNotice(error.message, "error");
+                } catch (err) {
+                    showNotice(err.message, "error");
                 }
             });
 
             els.reloadDetailsButton.addEventListener("click", async () => {
-                if (!state.selectedName) {
-                    return;
-                }
+                if (!state.selectedName) return;
                 try {
                     clearNotice();
                     await loadToolDetail(state.selectedName);
                     showNotice("Tool details refreshed", "success");
-                } catch (error) {
-                    showNotice(error.message, "error");
+                } catch (err) {
+                    showNotice(err.message, "error");
                 }
             });
 
@@ -730,90 +1157,67 @@
                         "/tools/" +
                             encodeURIComponent(state.selectedName) +
                             "/update",
-                        {
-                            method: "POST",
-                            body: JSON.stringify({}),
-                        },
+                        { method: "POST", body: JSON.stringify({}) },
                     );
                     showNotice(
                         "Update started for " + state.selectedName,
                         "success",
                     );
                     await refreshAll(state.selectedName);
-                } catch (error) {
-                    showNotice(error.message, "error");
+                } catch (err) {
+                    showNotice(err.message, "error");
                 }
             });
 
-            els.updateForm.addEventListener("submit", async (event) => {
-                event.preventDefault();
+            els.updateForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
                 if (!state.selectedName) {
                     showNotice("Select a tool first", "error");
                     return;
                 }
-
-                const formData = new FormData(els.updateForm);
+                const fd = new FormData(els.updateForm);
                 const body = {};
-                const downloadURL = String(
-                    formData.get("download_url") || "",
-                ).trim();
-                const checksum = String(formData.get("checksum") || "");
-                const versionCommand = String(
-                    formData.get("version_command") || "",
-                ).trim();
-                const args = String(formData.get("args") || "").trim();
-
-                if (downloadURL) body.download_url = downloadURL;
-                if (checksum !== "") body.checksum = checksum.trim();
-                if (versionCommand)
-                    body.version_command = csvToList(versionCommand);
+                const url = String(fd.get("download_url") || "").trim();
+                const cksum = String(fd.get("checksum") || "");
+                const verCmd = String(fd.get("version_command") || "").trim();
+                const args = String(fd.get("args") || "").trim();
+                if (url) body.download_url = url;
+                if (cksum !== "") body.checksum = cksum.trim();
+                if (verCmd) body.version_command = csvToList(verCmd);
                 if (args) body.args = csvToList(args);
-
-                if (Object.keys(body).length === 0) {
-                    showNotice("Provide at least one field to change", "error");
+                if (!Object.keys(body).length) {
+                    showNotice("Provide at least one field to update", "error");
                     return;
                 }
-
                 try {
                     clearNotice();
                     await api(
                         "/tools/" +
                             encodeURIComponent(state.selectedName) +
                             "/configure-update",
-                        {
-                            method: "POST",
-                            body: JSON.stringify(body),
-                        },
+                        { method: "POST", body: JSON.stringify(body) },
                     );
                     els.updateForm.reset();
                     showNotice("Tool updated successfully", "success");
                     await refreshAll(state.selectedName);
-                } catch (error) {
-                    showNotice(error.message, "error");
+                } catch (err) {
+                    showNotice(err.message, "error");
                 }
             });
 
-            els.registerForm.addEventListener("submit", async (event) => {
-                event.preventDefault();
-                const formData = new FormData(els.registerForm);
+            els.registerForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const fd = new FormData(els.registerForm);
                 const body = {
-                    name: String(formData.get("name") || "").trim(),
-                    download_url: String(
-                        formData.get("download_url") || "",
-                    ).trim(),
+                    name: String(fd.get("name") || "").trim(),
+                    download_url: String(fd.get("download_url") || "").trim(),
                 };
-
-                const checksum = String(formData.get("checksum") || "");
-                const versionCommand = String(
-                    formData.get("version_command") || "",
-                ).trim();
-                const args = String(formData.get("args") || "").trim();
-
-                if (checksum.trim()) body.checksum = checksum.trim();
-                if (versionCommand)
-                    body.version_command = csvToList(versionCommand);
+                const cksum = String(fd.get("checksum") || "");
+                const verCmd = String(fd.get("version_command") || "").trim();
+                const args = String(fd.get("args") || "").trim();
+                if (cksum.trim()) body.checksum = cksum.trim();
+                if (verCmd) body.version_command = csvToList(verCmd);
                 if (args) body.args = csvToList(args);
-
                 try {
                     clearNotice();
                     await api("/tools/register", {
@@ -823,16 +1227,15 @@
                     els.registerForm.reset();
                     showNotice("Tool registered successfully", "success");
                     await refreshAll(body.name);
-                } catch (error) {
-                    showNotice(error.message, "error");
+                } catch (err) {
+                    showNotice(err.message, "error");
                 }
             });
 
+            /* ── Init ── */
             loadManagerVersion();
             if (state.token) {
-                refreshAll().catch((error) =>
-                    showNotice(error.message, "error"),
-                );
+                refreshAll().catch((err) => showNotice(err.message, "error"));
             } else {
                 renderTools();
                 renderDetail();
