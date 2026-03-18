@@ -80,16 +80,26 @@ func (m *Manager) EnsureRuntime() error {
 	return nil
 }
 
-func (m *Manager) StartAllRegistered() {
+func (m *Manager) EnsureAllRegisteredRunning() {
 	tools, err := m.store.ListTools()
 	if err != nil {
-		m.logger.Printf("list tools for boot start failed: %v", err)
+		m.logger.Printf("list tools for boot reconciliation failed: %v", err)
 		return
 	}
 	for _, t := range tools {
-		if err := m.Start(t.Name); err != nil {
-			m.logger.Printf("boot start warning for %s: %v", t.Name, err)
+		status, statusErr := m.pm2.Status(t.Name)
+		if statusErr != nil {
+			m.logger.Printf("boot status check warning for %s: %v", t.Name, statusErr)
 		}
+		if status == "online" || status == "launching" {
+			m.logger.Printf("boot reconciliation: %s already %s", t.Name, status)
+			continue
+		}
+		if err := m.Start(t.Name); err != nil {
+			m.logger.Printf("boot reconcile warning for %s: %v", t.Name, err)
+			continue
+		}
+		m.logger.Printf("boot reconciliation: started %s", t.Name)
 	}
 }
 

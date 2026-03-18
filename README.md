@@ -25,6 +25,7 @@ Now fully database-driven:
 - SQLite history of tool versions/updates
 - Manager self-update endpoint (not stored in tool version history)
 - Manager runs as a `systemd` service (not PM2) with automatic restart
+- On boot, the manager reconciles registered tools and starts any tool that is not already running
 - Token-based API security (all endpoints protected except manager version check)
 - Lockdown mode after repeated invalid-token attempts (10); unlock only via local CLI
 - Built-in web UI at `/web` for live inspection and common tool operations
@@ -60,7 +61,7 @@ Flags:
 - `--pm2-bin` default `pm2`
 - `--git-bin` default `git`
 - `--command-timeout-secs` default `90`
-- `--restart-on-boot` default `false`
+- `--restart-on-boot` default `true`
 
 Equivalent env vars:
 - `HTM_LISTEN_ADDR`
@@ -91,6 +92,8 @@ Production (recommended):
 sudo systemctl enable --now hubfly-tool-manager
 sudo systemctl status hubfly-tool-manager
 ```
+
+At startup, the manager checks every registered tool and starts any tool whose PM2 state is not already healthy. Tools already `online` are left untouched.
 
 ## HTTP API
 Default base URL: `http://127.0.0.1:10000`

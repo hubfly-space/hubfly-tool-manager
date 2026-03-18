@@ -57,3 +57,6 @@
 - Added built-in web UI:
   - `/web` serves a Tailwind-based dashboard from the Go binary
   - supports manager version display, tool cards, detailed tool inspection, register tool flow, and update actions
+- Improved reboot behavior:
+  - boot reconciliation is now enabled by default
+  - startup checks registered tools and only starts those that are not already healthy in PM2

@@ -24,7 +24,7 @@ func main() {
 	pm2Bin := flag.String("pm2-bin", envOrDefault("HTM_PM2_BIN", "pm2"), "pm2 binary")
 	gitBin := flag.String("git-bin", envOrDefault("HTM_GIT_BIN", "git"), "git binary")
 	timeoutSecs := flag.Int("command-timeout-secs", envIntOrDefault("HTM_COMMAND_TIMEOUT_SECS", 90), "command timeout in seconds")
-	restartOnBoot := flag.Bool("restart-on-boot", envBoolOrDefault("HTM_RESTART_ON_BOOT", false), "restart all registered tools at boot")
+	restartOnBoot := flag.Bool("restart-on-boot", envBoolOrDefault("HTM_RESTART_ON_BOOT", true), "ensure registered tools are running at boot")
 	flag.Parse()
 
 	logger := logx.New()
@@ -62,7 +62,7 @@ func main() {
 	}
 
 	if cfg.RestartOnBoot {
-		mgr.StartAllRegistered()
+		mgr.EnsureAllRegisteredRunning()
 	}
 
 	srv := httpapi.New(mgr, logger, cfg.TokenFile, cfg.LockdownFile)
