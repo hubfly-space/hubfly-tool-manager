@@ -1,853 +1,2353 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hubfly Tool Manager</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <style>
-        :root {
-            --bg: #07111b;
-            --bg-soft: #0d1723;
-            --panel: rgba(12, 23, 35, 0.86);
-            --panel-strong: #122436;
-            --panel-muted: #0f1d2c;
-            --border: rgba(138, 178, 230, 0.18);
-            --border-strong: rgba(138, 178, 230, 0.34);
-            --text: #eef6ff;
-            --muted: #95a9c1;
-            --accent: #59d0b4;
-            --accent-2: #f8b84e;
-            --danger: #ff7b7b;
-            --success: #69dd9a;
-            --shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
-            --radius: 18px;
-            --radius-sm: 12px;
-            --font-body: "Space Grotesk", sans-serif;
-            --font-mono: "IBM Plex Mono", monospace;
-        }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Hubfly Tool Manager</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #0e0f11;
+                --bg-1: #141518;
+                --bg-2: #1a1c20;
+                --bg-3: #21242a;
+                --border: rgba(255, 255, 255, 0.07);
+                --border-md: rgba(255, 255, 255, 0.12);
+                --border-hi: rgba(255, 255, 255, 0.18);
+                --text: #e8eaed;
+                --text-2: #9fa3aa;
+                --text-3: #666b73;
+                --accent: #3b82f6;
+                --accent-dim: rgba(59, 130, 246, 0.12);
+                --accent-glow: rgba(59, 130, 246, 0.25);
+                --green: #22c55e;
+                --green-dim: rgba(34, 197, 94, 0.12);
+                --amber: #f59e0b;
+                --amber-dim: rgba(245, 158, 11, 0.12);
+                --red: #ef4444;
+                --red-dim: rgba(239, 68, 68, 0.12);
+                --radius: 10px;
+                --radius-lg: 16px;
+                --shadow:
+                    0 1px 3px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+                --shadow-lg:
+                    0 4px 6px rgba(0, 0, 0, 0.5), 0 20px 60px rgba(0, 0, 0, 0.5);
+                --font: "Outfit", sans-serif;
+                --mono: "JetBrains Mono", monospace;
+                --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+            }
 
-        * { box-sizing: border-box; }
-        html, body {
-            margin: 0;
-            min-height: 100%;
-            background:
-                radial-gradient(circle at top left, rgba(89, 208, 180, 0.18), transparent 30%),
-                radial-gradient(circle at top right, rgba(248, 184, 78, 0.14), transparent 28%),
-                linear-gradient(180deg, #07111b 0%, #08131f 50%, #091827 100%);
-            color: var(--text);
-            font-family: var(--font-body);
-        }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+            }
 
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background-image:
-                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-            background-size: 28px 28px;
-            pointer-events: none;
-            opacity: 0.4;
-        }
+            html {
+                font-size: 15px;
+            }
 
-        button, input, select {
-            font: inherit;
-        }
+            body {
+                font-family: var(--font);
+                background: var(--bg);
+                color: var(--text);
+                min-height: 100vh;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+            }
 
-        .hidden { display: none !important; }
+            button,
+            input,
+            select,
+            textarea {
+                font: inherit;
+            }
 
-        .page {
-            position: relative;
-            z-index: 1;
-            max-width: 1500px;
-            margin: 0 auto;
-            padding: 24px;
-        }
+            .hidden {
+                display: none !important;
+            }
 
-        .auth-shell {
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            padding: 24px;
-        }
+            /* ─── Auth ─── */
+            .auth-shell {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                background:
+                    radial-gradient(
+                        ellipse 60% 50% at 50% -10%,
+                        rgba(59, 130, 246, 0.12),
+                        transparent
+                    ),
+                    var(--bg);
+            }
 
-        .auth-card {
-            width: min(460px, 100%);
-            background: linear-gradient(180deg, rgba(17, 35, 52, 0.95), rgba(10, 22, 34, 0.96));
-            border: 1px solid var(--border-strong);
-            border-radius: 28px;
-            padding: 30px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(18px);
-        }
+            .auth-card {
+                width: min(440px, 100%);
+                background: var(--bg-1);
+                border: 1px solid var(--border-md);
+                border-radius: var(--radius-lg);
+                padding: 40px;
+                box-shadow: var(--shadow-lg);
+            }
 
-        .eyebrow, .mono {
-            font-family: var(--font-mono);
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            font-size: 12px;
-            color: var(--muted);
-        }
+            .auth-logo {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 28px;
+            }
 
-        h1, h2, h3 {
-            margin: 0;
-            font-weight: 700;
-            letter-spacing: -0.03em;
-        }
+            .auth-logo-icon {
+                width: 36px;
+                height: 36px;
+                background: var(--accent);
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
 
-        .auth-card h1 {
-            margin-top: 10px;
-            font-size: 38px;
-            line-height: 1;
-        }
+            .auth-logo-icon svg {
+                width: 18px;
+                height: 18px;
+                fill: #fff;
+            }
 
-        .lede {
-            margin-top: 14px;
-            color: #bdd0e7;
-            line-height: 1.6;
-        }
+            .auth-logo-name {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--text-2);
+                font-family: var(--mono);
+            }
 
-        .login-form {
-            margin-top: 28px;
-            display: grid;
-            gap: 12px;
-        }
+            .auth-card h1 {
+                font-size: 26px;
+                font-weight: 700;
+                letter-spacing: -0.02em;
+                line-height: 1.2;
+            }
 
-        .field, .select, .search {
-            width: 100%;
-            border: 1px solid var(--border);
-            background: rgba(7, 17, 27, 0.8);
-            color: var(--text);
-            border-radius: 14px;
-            height: 48px;
-            padding: 0 14px;
-            outline: none;
-            transition: border-color 0.15s ease, transform 0.15s ease;
-        }
+            .auth-card p {
+                margin-top: 8px;
+                color: var(--text-2);
+                font-size: 14px;
+                line-height: 1.6;
+            }
 
-        .field:focus, .select:focus, .search:focus {
-            border-color: var(--accent);
-            transform: translateY(-1px);
-        }
+            .login-form {
+                margin-top: 28px;
+                display: grid;
+                gap: 12px;
+            }
 
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            min-height: 42px;
-            border-radius: 999px;
-            border: 1px solid transparent;
-            padding: 0 16px;
-            cursor: pointer;
-            transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-            font-weight: 700;
-        }
+            .field-label {
+                display: block;
+                font-size: 13px;
+                font-weight: 500;
+                color: var(--text-2);
+                margin-bottom: 6px;
+            }
 
-        .btn:hover { transform: translateY(-1px); }
-        .btn:disabled { cursor: progress; opacity: 0.55; transform: none; }
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent), #49b2d5);
-            color: #03121a;
-        }
-        .btn-secondary {
-            background: rgba(255,255,255,0.04);
-            color: var(--text);
-            border-color: var(--border);
-        }
-        .btn-danger {
-            background: rgba(255, 123, 123, 0.12);
-            color: #ffd4d4;
-            border-color: rgba(255, 123, 123, 0.4);
-        }
-        .btn-small {
-            min-height: 34px;
-            font-size: 13px;
-            padding: 0 12px;
-        }
+            .field,
+            .select,
+            .search,
+            textarea.field {
+                width: 100%;
+                background: var(--bg);
+                border: 1px solid var(--border-md);
+                color: var(--text);
+                border-radius: var(--radius);
+                height: 42px;
+                padding: 0 14px;
+                outline: none;
+                transition:
+                    border-color var(--transition),
+                    box-shadow var(--transition);
+                font-size: 14px;
+            }
 
-        .status-line {
-            margin-top: 14px;
-            min-height: 22px;
-            color: #d5e2f2;
-        }
-        .status-line.error { color: #ffb1b1; }
-        .status-line.ok { color: #b6f2c8; }
+            textarea.field {
+                height: auto;
+                padding: 12px 14px;
+                resize: vertical;
+                min-height: 80px;
+            }
 
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 18px;
-            padding: 28px;
-            border-radius: 28px;
-            background: linear-gradient(180deg, rgba(16, 30, 45, 0.94), rgba(10, 21, 33, 0.96));
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-        }
+            .field:focus,
+            .select:focus,
+            .search:focus,
+            textarea.field:focus {
+                border-color: var(--accent);
+                box-shadow: 0 0 0 3px var(--accent-dim);
+            }
 
-        .title {
-            font-size: clamp(34px, 6vw, 62px);
-            line-height: 0.92;
-            margin-top: 8px;
-        }
+            .field::placeholder,
+            .search::placeholder {
+                color: var(--text-3);
+            }
 
-        .title span { color: var(--accent); }
+            .select {
+                cursor: pointer;
+                appearance: none;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239fa3aa' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 12px center;
+                padding-right: 36px;
+            }
 
-        .topbar-actions, .toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
+            /* ─── Buttons ─── */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                height: 38px;
+                border-radius: var(--radius);
+                border: 1px solid transparent;
+                padding: 0 16px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+                transition: all var(--transition);
+                white-space: nowrap;
+                letter-spacing: 0.01em;
+            }
 
-        .summary-grid, .tool-grid, .logs-grid {
-            display: grid;
-            gap: 18px;
-            margin-top: 18px;
-        }
+            .btn:hover {
+                transform: translateY(-1px);
+            }
+            .btn:active {
+                transform: translateY(0);
+            }
+            .btn:disabled {
+                cursor: not-allowed;
+                opacity: 0.45;
+                transform: none !important;
+            }
 
-        .summary-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-        }
+            .btn-primary {
+                background: var(--accent);
+                color: #fff;
+                border-color: transparent;
+            }
+            .btn-primary:hover {
+                background: #2563eb;
+                box-shadow: 0 4px 14px var(--accent-glow);
+            }
+            .btn-secondary {
+                background: var(--bg-2);
+                color: var(--text);
+                border-color: var(--border-md);
+            }
+            .btn-secondary:hover {
+                background: var(--bg-3);
+                border-color: var(--border-hi);
+            }
+            .btn-ghost {
+                background: transparent;
+                color: var(--text-2);
+                border-color: transparent;
+            }
+            .btn-ghost:hover {
+                color: var(--text);
+                background: var(--bg-2);
+            }
+            .btn-danger {
+                background: var(--red-dim);
+                color: #fca5a5;
+                border-color: rgba(239, 68, 68, 0.25);
+            }
+            .btn-danger:hover {
+                background: rgba(239, 68, 68, 0.2);
+            }
+            .btn-success {
+                background: var(--green-dim);
+                color: #86efac;
+                border-color: rgba(34, 197, 94, 0.25);
+            }
+            .btn-sm {
+                height: 32px;
+                padding: 0 12px;
+                font-size: 12px;
+            }
 
-        .tool-grid {
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-        }
+            .status-line {
+                min-height: 20px;
+                margin-top: 10px;
+                font-size: 13px;
+            }
+            .status-line.error {
+                color: #fca5a5;
+            }
+            .status-line.ok {
+                color: #86efac;
+            }
 
-        .logs-grid {
-            grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
-        }
+            /* ─── App Shell ─── */
+            .app-shell {
+                display: grid;
+                grid-template-columns: 240px 1fr;
+                min-height: 100vh;
+            }
 
-        .panel {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 18px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(16px);
-        }
+            .sidebar {
+                background: var(--bg-1);
+                border-right: 1px solid var(--border);
+                padding: 24px 0;
+                position: sticky;
+                top: 0;
+                height: 100vh;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+            }
 
-        .stat {
-            min-height: 132px;
-            display: grid;
-            align-content: space-between;
-        }
+            .sidebar-logo {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 0 20px 24px;
+                border-bottom: 1px solid var(--border);
+            }
 
-        .stat-value {
-            font-size: 36px;
-            font-weight: 700;
-            letter-spacing: -0.04em;
-        }
+            .sidebar-logo-icon {
+                width: 30px;
+                height: 30px;
+                background: var(--accent);
+                border-radius: 7px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
 
-        .stat-sub {
-            color: var(--muted);
-            line-height: 1.5;
-        }
+            .sidebar-logo-icon svg {
+                width: 15px;
+                height: 15px;
+                fill: #fff;
+            }
+            .sidebar-logo-text {
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+            }
+            .sidebar-logo-sub {
+                font-size: 11px;
+                color: var(--text-3);
+                font-family: var(--mono);
+            }
 
-        .section-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 14px;
-        }
+            .sidebar-nav {
+                padding: 16px 12px;
+                flex: 1;
+            }
 
-        .tool-card {
-            display: grid;
-            gap: 14px;
-            background: linear-gradient(180deg, rgba(18, 36, 54, 0.92), rgba(12, 24, 36, 0.96));
-        }
+            .nav-section-label {
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--text-3);
+                padding: 0 8px;
+                margin-bottom: 4px;
+                margin-top: 16px;
+            }
 
-        .tool-meta {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            align-items: flex-start;
-        }
+            .nav-item {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                padding: 8px 10px;
+                border-radius: 8px;
+                color: var(--text-2);
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all var(--transition);
+                border: none;
+                background: none;
+                width: 100%;
+                text-align: left;
+            }
 
-        .tool-name {
-            font-size: 24px;
-        }
+            .nav-item:hover {
+                background: var(--bg-2);
+                color: var(--text);
+            }
+            .nav-item.active {
+                background: var(--accent-dim);
+                color: var(--accent);
+            }
 
-        .pill-row, .mini-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+            .nav-item svg {
+                width: 15px;
+                height: 15px;
+                flex-shrink: 0;
+                opacity: 0.7;
+            }
+            .nav-item.active svg {
+                opacity: 1;
+            }
 
-        .pill {
-            border-radius: 999px;
-            padding: 6px 10px;
-            border: 1px solid var(--border);
-            background: rgba(255,255,255,0.04);
-            font-family: var(--font-mono);
-            font-size: 12px;
-        }
+            .nav-badge {
+                margin-left: auto;
+                background: var(--accent);
+                color: #fff;
+                font-size: 10px;
+                font-weight: 700;
+                border-radius: 999px;
+                padding: 1px 6px;
+                font-family: var(--mono);
+            }
 
-        .pill.online { color: #baf9cd; border-color: rgba(105, 221, 154, 0.4); }
-        .pill.stopped { color: #ffd7b0; border-color: rgba(248, 184, 78, 0.45); }
-        .pill.errored { color: #ffc4c4; border-color: rgba(255, 123, 123, 0.45); }
+            .sidebar-footer {
+                padding: 16px 12px;
+                border-top: 1px solid var(--border);
+                display: grid;
+                gap: 6px;
+            }
 
-        .keyvals {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
+            /* ─── Main Content ─── */
+            .main {
+                display: flex;
+                flex-direction: column;
+                min-height: 100vh;
+                overflow-x: hidden;
+            }
 
-        .kv {
-            padding: 12px;
-            border-radius: 14px;
-            background: var(--panel-muted);
-            border: 1px solid rgba(255,255,255,0.05);
-        }
+            .topbar {
+                background: var(--bg-1);
+                border-bottom: 1px solid var(--border);
+                padding: 0 32px;
+                height: 60px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
 
-        .kv-label {
-            color: var(--muted);
-            font-size: 12px;
-            margin-bottom: 4px;
-        }
+            .topbar-left {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
 
-        .kv-value {
-            font-family: var(--font-mono);
-            font-size: 13px;
-            word-break: break-word;
-        }
+            .page-title {
+                font-size: 15px;
+                font-weight: 600;
+            }
 
-        .release-box, .log-box {
-            padding: 12px;
-            border-radius: 14px;
-            background: rgba(89, 208, 180, 0.08);
-            border: 1px solid rgba(89, 208, 180, 0.18);
-        }
+            .breadcrumb {
+                font-size: 13px;
+                color: var(--text-3);
+                font-family: var(--mono);
+            }
 
-        .release-box.warning {
-            background: rgba(248, 184, 78, 0.08);
-            border-color: rgba(248, 184, 78, 0.2);
-        }
+            .topbar-right {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
 
-        .release-box.error {
-            background: rgba(255, 123, 123, 0.08);
-            border-color: rgba(255, 123, 123, 0.2);
-        }
+            .topbar-divider {
+                width: 1px;
+                height: 20px;
+                background: var(--border-md);
+            }
 
-        .toolbar {
-            margin-top: 12px;
-        }
+            .status-indicator {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                font-size: 12px;
+                color: var(--text-2);
+                font-family: var(--mono);
+            }
 
-        .log-lines {
-            max-height: 640px;
-            overflow: auto;
-            display: grid;
-            gap: 10px;
-        }
+            .status-dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--text-3);
+            }
 
-        .log-line {
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.06);
-            background: rgba(3, 10, 16, 0.48);
-            padding: 12px;
-            font-family: var(--font-mono);
-            font-size: 12px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
+            .status-dot.online {
+                background: var(--green);
+                box-shadow: 0 0 6px var(--green);
+            }
+            .status-dot.loading {
+                background: var(--amber);
+                animation: pulse 1s infinite;
+            }
 
-        .log-line-head {
-            color: #91b6db;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-        }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
 
-        .empty {
-            padding: 24px;
-            border: 1px dashed var(--border);
-            border-radius: 18px;
-            color: var(--muted);
-            text-align: center;
-        }
+            .content {
+                padding: 32px;
+                flex: 1;
+            }
 
-        .spinner {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.22);
-            border-top-color: currentColor;
-            animation: spin 0.7s linear infinite;
-        }
+            .view {
+                display: none;
+            }
+            .view.active {
+                display: block;
+            }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+            /* ─── Stats Strip ─── */
+            .stats-strip {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 16px;
+                margin-bottom: 28px;
+            }
 
-        @media (max-width: 1080px) {
-            .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .logs-grid { grid-template-columns: 1fr; }
-        }
+            .stat-card {
+                background: var(--bg-1);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                padding: 20px 22px;
+            }
 
-        @media (max-width: 760px) {
-            .page { padding: 16px; }
-            .topbar { padding: 20px; flex-direction: column; }
-            .summary-grid, .keyvals { grid-template-columns: 1fr; }
-            .title { font-size: 36px; }
-        }
-    </style>
-</head>
-<body>
-    <section id="authView" class="auth-shell">
-        <div class="auth-card">
-            <div class="eyebrow">Secure Access Gate</div>
-            <h1>Tool Manager <span style="color: var(--accent)">Control</span></h1>
-            <p class="lede">
-                This view only unlocks the manager after the server validates the key and creates a secure session.
-                Brute-force attempts are rate-limited and repeated failures trigger lockdown.
-            </p>
-            <form id="loginForm" class="login-form">
-                <input id="tokenInput" class="field" type="password" autocomplete="current-password" placeholder="Enter manager key" />
-                <button id="loginButton" class="btn btn-primary" type="submit">Login To Manager</button>
-            </form>
-            <div id="authStatus" class="status-line"></div>
-        </div>
-    </section>
+            .stat-card-label {
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--text-3);
+                margin-bottom: 10px;
+            }
 
-    <main id="appView" class="page hidden">
-        <section class="topbar">
-            <div>
-                <div class="eyebrow">Hubfly Tool Manager</div>
-                <h1 class="title">Operate <span>tools</span>, inspect <span>logs</span>, control <span>updates</span>.</h1>
-                <p class="lede">Batch updates, release-aware suggestions, secure actions, and searchable runtime logs from one interface.</p>
-            </div>
-            <div class="topbar-actions">
-                <button class="btn btn-secondary" id="refreshButton">Refresh</button>
-                <button class="btn btn-secondary" id="updateAllButton">Update All Tools</button>
-                <button class="btn btn-secondary" id="selfUpdateButton">Update HTM</button>
-                <button class="btn btn-danger" id="logoutButton">Logout</button>
-            </div>
-        </section>
+            .stat-card-value {
+                font-size: 32px;
+                font-weight: 700;
+                letter-spacing: -0.04em;
+                line-height: 1;
+                margin-bottom: 6px;
+            }
 
-        <section class="summary-grid" id="summaryGrid"></section>
+            .stat-card-note {
+                font-size: 12px;
+                color: var(--text-3);
+            }
 
-        <section class="panel">
-            <div class="section-head">
-                <div>
-                    <div class="eyebrow">Tool Fleet</div>
-                    <h2>Registered Tools</h2>
-                </div>
-                <div id="fleetStatus" class="mono">Idle</div>
-            </div>
-            <div id="toolGrid" class="tool-grid"></div>
-        </section>
+            /* ─── Section Header ─── */
+            .section-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 16px;
+                gap: 12px;
+            }
 
-        <section class="logs-grid">
-            <aside class="panel">
-                <div class="section-head">
+            .section-title {
+                font-size: 15px;
+                font-weight: 600;
+            }
+
+            .section-meta {
+                font-size: 12px;
+                color: var(--text-3);
+                font-family: var(--mono);
+            }
+
+            /* ─── Tools Grid ─── */
+            .tool-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+                gap: 16px;
+            }
+
+            .tool-card {
+                background: var(--bg-1);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                overflow: hidden;
+                transition: border-color var(--transition);
+            }
+
+            .tool-card:hover {
+                border-color: var(--border-hi);
+            }
+
+            .tool-card-header {
+                padding: 20px 20px 16px;
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .tool-card-name-group {
+            }
+
+            .tool-card-slug {
+                font-size: 11px;
+                font-family: var(--mono);
+                color: var(--text-3);
+                margin-bottom: 2px;
+            }
+
+            .tool-card-name {
+                font-size: 17px;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+            }
+
+            .status-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11px;
+                font-weight: 600;
+                font-family: var(--mono);
+                padding: 4px 10px;
+                border-radius: 999px;
+                white-space: nowrap;
+            }
+
+            .status-pill::before {
+                content: "";
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+            }
+
+            .status-pill.online {
+                background: var(--green-dim);
+                color: #86efac;
+                border: 1px solid rgba(34, 197, 94, 0.25);
+            }
+            .status-pill.online::before {
+                background: var(--green);
+            }
+            .status-pill.stopped {
+                background: var(--amber-dim);
+                color: #fcd34d;
+                border: 1px solid rgba(245, 158, 11, 0.25);
+            }
+            .status-pill.stopped::before {
+                background: var(--amber);
+            }
+            .status-pill.errored {
+                background: var(--red-dim);
+                color: #fca5a5;
+                border: 1px solid rgba(239, 68, 68, 0.25);
+            }
+            .status-pill.errored::before {
+                background: var(--red);
+            }
+            .status-pill.unknown {
+                background: var(--bg-2);
+                color: var(--text-3);
+                border: 1px solid var(--border);
+            }
+            .status-pill.unknown::before {
+                background: var(--text-3);
+            }
+
+            .tool-card-meta {
+                padding: 14px 20px;
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .meta-tag {
+                font-size: 11px;
+                font-family: var(--mono);
+                color: var(--text-3);
+                background: var(--bg-2);
+                border: 1px solid var(--border);
+                padding: 3px 9px;
+                border-radius: 6px;
+            }
+
+            .tool-card-release {
+                padding: 12px 20px;
+                font-size: 12px;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .release-ok {
+                color: var(--text-3);
+            }
+            .release-update {
+                color: var(--amber);
+            }
+            .release-error {
+                color: #fca5a5;
+            }
+
+            .release-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .release-icon {
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+            }
+
+            .tool-card-actions {
+                padding: 14px 20px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            /* ─── Details Table ─── */
+            .kv-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1px;
+                background: var(--border);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                overflow: hidden;
+                font-size: 12px;
+            }
+
+            .kv-row {
+                background: var(--bg-1);
+                padding: 10px 14px;
+            }
+
+            .kv-key {
+                color: var(--text-3);
+                font-size: 11px;
+                margin-bottom: 2px;
+            }
+
+            .kv-val {
+                font-family: var(--mono);
+                font-size: 12px;
+                word-break: break-all;
+                color: var(--text-2);
+            }
+
+            /* ─── Log View ─── */
+            .logs-layout {
+                display: grid;
+                grid-template-columns: 280px 1fr;
+                gap: 20px;
+                align-items: start;
+            }
+
+            .log-controls {
+                background: var(--bg-1);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                padding: 20px;
+                position: sticky;
+                top: 88px;
+                display: grid;
+                gap: 14px;
+            }
+
+            .log-controls-title {
+                font-size: 13px;
+                font-weight: 600;
+                margin-bottom: 2px;
+            }
+
+            .form-group {
+                display: grid;
+                gap: 6px;
+            }
+            .form-label {
+                font-size: 12px;
+                font-weight: 500;
+                color: var(--text-2);
+            }
+
+            .log-results-panel {
+                background: var(--bg-1);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                overflow: hidden;
+            }
+
+            .log-results-header {
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .log-lines {
+                max-height: calc(100vh - 220px);
+                overflow-y: auto;
+                padding: 12px;
+                display: grid;
+                gap: 4px;
+            }
+
+            .log-line {
+                border-radius: 8px;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                padding: 10px 14px;
+                font-family: var(--mono);
+                font-size: 11.5px;
+                line-height: 1.6;
+            }
+
+            .log-line-meta {
+                display: flex;
+                justify-content: space-between;
+                color: var(--text-3);
+                font-size: 10px;
+                margin-bottom: 5px;
+            }
+
+            .log-line-text {
+                color: var(--text-2);
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            /* ─── Modals ─── */
+            .modal-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.7);
+                backdrop-filter: blur(4px);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity var(--transition);
+            }
+
+            .modal-overlay.open {
+                opacity: 1;
+                pointer-events: all;
+            }
+
+            .modal {
+                background: var(--bg-1);
+                border: 1px solid var(--border-md);
+                border-radius: var(--radius-lg);
+                width: min(560px, 100%);
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: var(--shadow-lg);
+                transform: translateY(8px) scale(0.98);
+                transition: transform var(--transition);
+            }
+
+            .modal-overlay.open .modal {
+                transform: translateY(0) scale(1);
+            }
+
+            .modal-lg {
+                width: min(720px, 100%);
+            }
+
+            .modal-header {
+                padding: 22px 24px 18px;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .modal-title {
+                font-size: 16px;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+            }
+
+            .modal-subtitle {
+                font-size: 13px;
+                color: var(--text-3);
+                margin-top: 2px;
+            }
+
+            .modal-close {
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 8px;
+                background: none;
+                border: none;
+                color: var(--text-3);
+                cursor: pointer;
+                transition: all var(--transition);
+                flex-shrink: 0;
+            }
+
+            .modal-close:hover {
+                background: var(--bg-2);
+                color: var(--text);
+            }
+
+            .modal-body {
+                padding: 22px 24px;
+                display: grid;
+                gap: 16px;
+            }
+
+            .modal-footer {
+                padding: 16px 24px 20px;
+                border-top: 1px solid var(--border);
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+            }
+
+            /* ─── Toast ─── */
+            .toast-container {
+                position: fixed;
+                bottom: 24px;
+                right: 24px;
+                z-index: 2000;
+                display: grid;
+                gap: 8px;
+                max-width: 360px;
+            }
+
+            .toast {
+                background: var(--bg-2);
+                border: 1px solid var(--border-md);
+                border-radius: var(--radius);
+                padding: 13px 16px;
+                font-size: 13px;
+                box-shadow: var(--shadow-lg);
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                animation: slideIn 0.2s ease;
+            }
+
+            .toast.success {
+                border-color: rgba(34, 197, 94, 0.3);
+            }
+            .toast.error {
+                border-color: rgba(239, 68, 68, 0.3);
+            }
+            .toast.info {
+                border-color: rgba(59, 130, 246, 0.3);
+            }
+
+            .toast-icon {
+                width: 16px;
+                height: 16px;
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+            .toast-text {
+                flex: 1;
+                line-height: 1.4;
+            }
+            .toast-title {
+                font-weight: 600;
+            }
+            .toast-msg {
+                color: var(--text-2);
+                font-size: 12px;
+                margin-top: 2px;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+
+            /* ─── Alert box ─── */
+            .alert {
+                border-radius: var(--radius);
+                padding: 12px 16px;
+                font-size: 13px;
+                border: 1px solid;
+            }
+            .alert-amber {
+                background: var(--amber-dim);
+                border-color: rgba(245, 158, 11, 0.3);
+                color: #fcd34d;
+            }
+            .alert-green {
+                background: var(--green-dim);
+                border-color: rgba(34, 197, 94, 0.3);
+                color: #86efac;
+            }
+            .alert-red {
+                background: var(--red-dim);
+                border-color: rgba(239, 68, 68, 0.3);
+                color: #fca5a5;
+            }
+            .alert-blue {
+                background: var(--accent-dim);
+                border-color: rgba(59, 130, 246, 0.3);
+                color: #93c5fd;
+            }
+
+            /* ─── Spinner ─── */
+            .spinner {
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                border: 2px solid rgba(255, 255, 255, 0.15);
+                border-top-color: currentColor;
+                animation: spin 0.6s linear infinite;
+                flex-shrink: 0;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* ─── Empty State ─── */
+            .empty-state {
+                padding: 48px 24px;
+                text-align: center;
+                color: var(--text-3);
+            }
+
+            .empty-state-icon {
+                font-size: 32px;
+                margin-bottom: 10px;
+                opacity: 0.4;
+            }
+            .empty-state-text {
+                font-size: 13px;
+            }
+
+            /* ─── Divider ─── */
+            .divider {
+                border: none;
+                border-top: 1px solid var(--border);
+                margin: 4px 0;
+            }
+
+            /* ─── Responsive ─── */
+            @media (max-width: 1100px) {
+                .stats-strip {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+                .logs-layout {
+                    grid-template-columns: 1fr;
+                }
+                .log-controls {
+                    position: static;
+                }
+            }
+
+            @media (max-width: 800px) {
+                .app-shell {
+                    grid-template-columns: 1fr;
+                }
+                .sidebar {
+                    display: none;
+                }
+                .content {
+                    padding: 16px;
+                }
+                .topbar {
+                    padding: 0 16px;
+                }
+                .stats-strip {
+                    grid-template-columns: 1fr 1fr;
+                }
+                .tool-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            /* ─── Misc ─── */
+            code {
+                font-family: var(--mono);
+                font-size: 12px;
+                background: var(--bg-2);
+                padding: 2px 6px;
+                border-radius: 5px;
+                color: var(--text-2);
+            }
+
+            .mono {
+                font-family: var(--mono);
+                font-size: 12px;
+            }
+            .text-muted {
+                color: var(--text-3);
+            }
+            .text-sm {
+                font-size: 13px;
+            }
+
+            .progress-ring {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Action result log in modal */
+            .action-log {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 14px;
+                font-family: var(--mono);
+                font-size: 12px;
+                color: var(--text-2);
+                max-height: 200px;
+                overflow-y: auto;
+                line-height: 1.7;
+                white-space: pre-wrap;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- ─── Auth Screen ─── -->
+        <section id="authView" class="auth-shell">
+            <div class="auth-card">
+                <div class="auth-logo">
+                    <div class="auth-logo-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                            />
+                        </svg>
+                    </div>
                     <div>
-                        <div class="eyebrow">Logs Workbench</div>
-                        <h2>Search And Clean Logs</h2>
+                        <div class="auth-logo-name">Hubfly HTM</div>
                     </div>
                 </div>
-                <div class="toolbar">
-                    <select id="logToolFilter" class="select">
-                        <option value="">All tools</option>
-                    </select>
-                    <select id="logFileFilter" class="select">
-                        <option value="">All log files</option>
-                        <option value="boot.log">boot.log</option>
-                        <option value="stdout.log">stdout.log</option>
-                        <option value="stderr.log">stderr.log</option>
-                    </select>
-                    <input id="logQuery" class="search" type="text" placeholder="Search logs, errors, startup lines, versions" />
-                    <input id="logLimit" class="field" type="number" min="10" max="1000" value="150" />
-                    <button class="btn btn-primary" id="searchLogsButton">Search Logs</button>
-                    <button class="btn btn-secondary" id="refreshLogsButton">Refresh Logs</button>
-                    <button class="btn btn-danger" id="clearLogsButton">Clear Selected Logs</button>
+                <h1>Tool Manager</h1>
+                <p>
+                    Enter your manager key to access the control panel. Repeated
+                    failures trigger lockdown.
+                </p>
+                <form id="loginForm" class="login-form">
+                    <div>
+                        <label class="field-label" for="tokenInput"
+                            >Manager Key</label
+                        >
+                        <input
+                            id="tokenInput"
+                            class="field"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="sk-••••••••"
+                        />
+                    </div>
+                    <button
+                        id="loginButton"
+                        class="btn btn-primary"
+                        type="submit"
+                        style="height: 42px"
+                    >
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                        >
+                            <path
+                                d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"
+                            />
+                        </svg>
+                        Sign in
+                    </button>
+                </form>
+                <div id="authStatus" class="status-line"></div>
+            </div>
+        </section>
+
+        <!-- ─── App Shell ─── -->
+        <div id="appView" class="app-shell hidden">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-logo">
+                    <div class="sidebar-logo-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                            />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="sidebar-logo-text">Tool Manager</div>
+                        <div class="sidebar-logo-sub">Hubfly HTM</div>
+                    </div>
                 </div>
-                <div id="logStatus" class="status-line"></div>
+                <nav class="sidebar-nav">
+                    <div class="nav-section-label">Navigation</div>
+                    <button class="nav-item active" data-view="overview">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                        </svg>
+                        Overview
+                    </button>
+                    <button class="nav-item" data-view="tools">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"
+                            />
+                        </svg>
+                        Tools
+                        <span class="nav-badge" id="navToolCount">0</span>
+                    </button>
+                    <button class="nav-item" data-view="logs">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                            />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <line x1="10" y1="9" x2="8" y2="9" />
+                        </svg>
+                        Logs
+                    </button>
+
+                    <div class="nav-section-label" style="margin-top: 20px">
+                        Actions
+                    </div>
+                    <button class="nav-item" id="sidebarRefresh">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+                        </svg>
+                        Refresh All
+                    </button>
+                    <button class="nav-item" id="sidebarUpdateAll">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <polyline points="16 16 12 12 8 16" />
+                            <line x1="12" y1="12" x2="12" y2="21" />
+                            <path
+                                d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"
+                            />
+                        </svg>
+                        Update All Tools
+                    </button>
+                    <button class="nav-item" id="sidebarSelfUpdate">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        Update HTM
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <button class="nav-item" id="sidebarLogout">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+                            />
+                        </svg>
+                        Logout
+                    </button>
+                </div>
             </aside>
 
-            <section class="panel">
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Query Results</div>
-                        <h2>Live Log Output</h2>
+            <!-- Main Area -->
+            <div class="main">
+                <header class="topbar">
+                    <div class="topbar-left">
+                        <div class="page-title" id="topbarTitle">Overview</div>
                     </div>
-                    <div id="logCount" class="mono">0 rows</div>
+                    <div class="topbar-right">
+                        <div class="status-indicator">
+                            <div class="status-dot" id="statusDot"></div>
+                            <span id="statusText">Idle</span>
+                        </div>
+                        <div class="topbar-divider"></div>
+                        <button
+                            class="btn btn-secondary btn-sm"
+                            id="topbarRefresh"
+                        >
+                            <svg
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                            >
+                                <polyline points="23 4 23 10 17 10" />
+                                <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+                            </svg>
+                            Refresh
+                        </button>
+                        <button class="btn btn-danger btn-sm" id="topbarLogout">
+                            Logout
+                        </button>
+                    </div>
+                </header>
+
+                <div class="content">
+                    <!-- Overview View -->
+                    <div class="view active" id="view-overview">
+                        <div class="stats-strip" id="summaryGrid"></div>
+
+                        <div class="section-header">
+                            <div class="section-title">Recent Tools</div>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                data-view="tools"
+                            >
+                                View all →
+                            </button>
+                        </div>
+                        <div id="overviewToolGrid" class="tool-grid"></div>
+                    </div>
+
+                    <!-- Tools View -->
+                    <div class="view" id="view-tools">
+                        <div class="section-header">
+                            <div class="section-title">
+                                All Tools
+                                <span
+                                    class="text-muted"
+                                    id="toolCountLabel"
+                                ></span>
+                            </div>
+                            <div style="display: flex; gap: 8px">
+                                <button
+                                    class="btn btn-secondary btn-sm"
+                                    id="toolsRefreshBtn"
+                                >
+                                    <svg
+                                        width="12"
+                                        height="12"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.5"
+                                    >
+                                        <polyline points="23 4 23 10 17 10" />
+                                        <path
+                                            d="M20.49 15a9 9 0 11-2.12-9.36L23 10"
+                                        />
+                                    </svg>
+                                    Refresh
+                                </button>
+                                <button
+                                    class="btn btn-primary btn-sm"
+                                    id="updateAllBtn"
+                                >
+                                    Update All
+                                </button>
+                            </div>
+                        </div>
+                        <div id="toolGrid" class="tool-grid"></div>
+                    </div>
+
+                    <!-- Logs View -->
+                    <div class="view" id="view-logs">
+                        <div class="section-header">
+                            <div class="section-title">Log Explorer</div>
+                        </div>
+                        <div class="logs-layout">
+                            <aside class="log-controls">
+                                <div>
+                                    <div class="log-controls-title">
+                                        Filters
+                                    </div>
+                                    <div class="text-sm text-muted">
+                                        Narrow results by tool, file, or
+                                        keyword.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Tool</label>
+                                    <select
+                                        id="logToolFilter"
+                                        class="select"
+                                    ></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Log File</label>
+                                    <select id="logFileFilter" class="select">
+                                        <option value="">All log files</option>
+                                        <option value="boot.log">
+                                            boot.log
+                                        </option>
+                                        <option value="stdout.log">
+                                            stdout.log
+                                        </option>
+                                        <option value="stderr.log">
+                                            stderr.log
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label"
+                                        >Search query</label
+                                    >
+                                    <input
+                                        id="logQuery"
+                                        class="search"
+                                        type="text"
+                                        placeholder="error, started, version…"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max rows</label>
+                                    <input
+                                        id="logLimit"
+                                        class="field"
+                                        type="number"
+                                        min="10"
+                                        max="1000"
+                                        value="150"
+                                    />
+                                </div>
+                                <div style="display: grid; gap: 6px">
+                                    <button
+                                        class="btn btn-primary"
+                                        id="searchLogsButton"
+                                    >
+                                        Search
+                                    </button>
+                                    <button
+                                        class="btn btn-secondary"
+                                        id="refreshLogsButton"
+                                    >
+                                        Refresh
+                                    </button>
+                                    <button
+                                        class="btn btn-danger"
+                                        id="clearLogsButton"
+                                    >
+                                        Clear Filtered Logs
+                                    </button>
+                                </div>
+                                <div id="logStatus" class="status-line"></div>
+                            </aside>
+
+                            <section class="log-results-panel">
+                                <div class="log-results-header">
+                                    <div class="section-title">Results</div>
+                                    <div class="section-meta" id="logCount">
+                                        0 rows
+                                    </div>
+                                </div>
+                                <div id="logResults" class="log-lines"></div>
+                            </section>
+                        </div>
+                    </div>
                 </div>
-                <div id="logResults" class="log-lines"></div>
-            </section>
-        </section>
-    </main>
+                <!-- /content -->
+            </div>
+            <!-- /main -->
+        </div>
+        <!-- /app-shell -->
 
-    <script>
-        const state = {
-            csrfToken: "",
-            tools: [],
-            lastLogQuery: { tool: "", file: "", q: "", limit: 150 }
-        };
+        <!-- ─── Modals ─── -->
 
-        const authView = document.getElementById("authView");
-        const appView = document.getElementById("appView");
-        const authStatus = document.getElementById("authStatus");
-        const fleetStatus = document.getElementById("fleetStatus");
-        const summaryGrid = document.getElementById("summaryGrid");
-        const toolGrid = document.getElementById("toolGrid");
-        const logResults = document.getElementById("logResults");
-        const logStatus = document.getElementById("logStatus");
-        const logCount = document.getElementById("logCount");
-        const logToolFilter = document.getElementById("logToolFilter");
-
-        function setStatus(node, text, kind = "") {
-            node.className = `status-line ${kind}`.trim();
-            node.textContent = text || "";
-        }
-
-        function formatTime(value) {
-            if (!value) return "n/a";
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) return "n/a";
-            return date.toLocaleString();
-        }
-
-        function formatBytes(value) {
-            const bytes = Number(value || 0);
-            if (bytes < 1024) return `${bytes} B`;
-            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-            if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-            return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-        }
-
-        async function apiFetch(path, options = {}) {
-            const init = { credentials: "same-origin", ...options };
-            init.headers = { ...(options.headers || {}) };
-            if (state.csrfToken && init.method && init.method !== "GET") {
-                init.headers["X-CSRF-Token"] = state.csrfToken;
-            }
-            if (init.body && !init.headers["Content-Type"]) {
-                init.headers["Content-Type"] = "application/json";
-            }
-            const response = await fetch(path, init);
-            const text = await response.text();
-            const payload = text ? JSON.parse(text) : {};
-            if (!response.ok) {
-                throw new Error(payload.error || `${response.status} ${response.statusText}`);
-            }
-            return payload;
-        }
-
-        function authMode(authenticated) {
-            authView.classList.toggle("hidden", authenticated);
-            appView.classList.toggle("hidden", !authenticated);
-        }
-
-        function toolStatusClass(status) {
-            const value = (status || "").toLowerCase();
-            if (value.includes("online")) return "online";
-            if (value.includes("error")) return "errored";
-            if (value.includes("stop")) return "stopped";
-            return "";
-        }
-
-        function renderSummary() {
-            const tools = state.tools;
-            const online = tools.filter((tool) => (tool.pm2_status || "").toLowerCase() === "online").length;
-            const needsUpdate = tools.filter((tool) => tool.release && tool.release.update_available).length;
-            const logBytes = tools.reduce((sum, tool) => sum + Number(tool.logs?.total_bytes || 0), 0);
-            const stats = [
-                { label: "Tools", value: String(tools.length), note: "Registered in the manager." },
-                { label: "Online", value: String(online), note: "Currently healthy and running." },
-                { label: "Release Hints", value: String(needsUpdate), note: "GitHub release suggestions available." },
-                { label: "Log Volume", value: formatBytes(logBytes), note: "Current retained runtime logs." }
-            ];
-            summaryGrid.innerHTML = stats.map((stat) => `
-                <article class="panel stat">
-                    <div class="mono">${stat.label}</div>
-                    <div class="stat-value">${stat.value}</div>
-                    <div class="stat-sub">${stat.note}</div>
-                </article>
-            `).join("");
-        }
-
-        function renderTools() {
-            if (!state.tools.length) {
-                toolGrid.innerHTML = `<div class="empty">No tools registered yet.</div>`;
-                return;
-            }
-
-            toolGrid.innerHTML = state.tools.map((tool) => {
-                const release = tool.release || {};
-                const releaseClass = release.error ? "error" : release.update_available ? "warning" : "";
-                const safeName = escapeHTML(tool.name || "");
-                const safeSlug = escapeHTML(tool.slug || "tool");
-                const safeStatus = escapeHTML(tool.pm2_status || "unknown");
-                const safeVersion = escapeHTML(tool.version || "unknown");
-                const safeUpdated = escapeHTML(formatTime(tool.updated_at));
-                const safeDownloadURL = escapeHTML(tool.download_url || "n/a");
-                const safeBinaryPath = escapeHTML(tool.binary_path || "n/a");
-                const safeBootLog = escapeHTML(tool.logs?.boot_log_path || "n/a");
-                const safeLastWrite = escapeHTML(formatTime(tool.logs?.last_write_at));
-                const safeRepo = escapeHTML(release.repository || "n/a");
-                const safeCurrentTag = escapeHTML(release.current_tag || "n/a");
-                const safeLatestTag = escapeHTML(release.latest_tag || "n/a");
-                const safeReleaseText = escapeHTML(release.error || release.reason || (release.update_available ? `Suggested asset: ${release.latest_asset || "review latest release"}` : "Configured release looks current."));
-                const safeSuggestedURL = escapeHTML(release.suggested_download_url || "");
-                return `
-                    <article class="panel tool-card">
-                        <div class="tool-meta">
-                            <div>
-                                <div class="mono">${safeSlug}</div>
-                                <h3 class="tool-name">${safeName}</h3>
-                            </div>
-                            <div class="pill ${toolStatusClass(tool.pm2_status)}">${safeStatus}</div>
+        <!-- Confirm Action Modal -->
+        <div class="modal-overlay" id="modalConfirm">
+            <div class="modal">
+                <div class="modal-header">
+                    <div>
+                        <div class="modal-title" id="confirmTitle">
+                            Confirm Action
                         </div>
-
-                        <div class="pill-row">
-                            <span class="pill">Version ${safeVersion}</span>
-                            <span class="pill">Updated ${safeUpdated}</span>
-                            <span class="pill">Logs ${formatBytes(tool.logs?.total_bytes || 0)}</span>
-                        </div>
-
-                        <div class="mini-actions">
-                            <button class="btn btn-secondary btn-small" data-action="start" data-tool="${safeName}">Start</button>
-                            <button class="btn btn-secondary btn-small" data-action="stop" data-tool="${safeName}">Stop</button>
-                            <button class="btn btn-secondary btn-small" data-action="restart" data-tool="${safeName}">Restart</button>
-                            <button class="btn btn-primary btn-small" data-action="update" data-tool="${safeName}">Update</button>
-                            <button class="btn btn-secondary btn-small" data-action="search-logs" data-tool="${safeName}">Open Logs</button>
-                            <button class="btn btn-danger btn-small" data-action="clear-tool-logs" data-tool="${safeName}">Clean Logs</button>
-                        </div>
-
-                        <div class="keyvals">
-                            <div class="kv">
-                                <div class="kv-label">Download URL</div>
-                                <div class="kv-value">${safeDownloadURL}</div>
-                            </div>
-                            <div class="kv">
-                                <div class="kv-label">Binary Path</div>
-                                <div class="kv-value">${safeBinaryPath}</div>
-                            </div>
-                            <div class="kv">
-                                <div class="kv-label">Boot Log</div>
-                                <div class="kv-value">${safeBootLog}</div>
-                            </div>
-                            <div class="kv">
-                                <div class="kv-label">Last Log Write</div>
-                                <div class="kv-value">${safeLastWrite}</div>
-                            </div>
-                        </div>
-
-                        <div class="release-box ${releaseClass}">
-                            <strong>Release Suggestion</strong>
-                            <div style="margin-top: 6px; color: #d7e5f4;">
-                                ${release.supported ? `Repo ${safeRepo} | current ${safeCurrentTag} | latest ${safeLatestTag}` : escapeHTML(release.reason || "No GitHub release pattern detected.")}
-                            </div>
-                            <div style="margin-top: 6px; color: #bdd0e7;">
-                                ${safeReleaseText}
-                            </div>
-                            ${release.suggested_download_url ? `<div style="margin-top: 6px;" class="mono">${safeSuggestedURL}</div>` : ""}
-                        </div>
-                    </article>
-                `;
-            }).join("");
-        }
-
-        function renderLogToolFilter() {
-            const current = logToolFilter.value;
-            logToolFilter.innerHTML = `<option value="">All tools</option>` + state.tools.map((tool) => `<option value="${escapeHTML(tool.name)}">${escapeHTML(tool.name)}</option>`).join("");
-            if ([...logToolFilter.options].some((option) => option.value === current)) {
-                logToolFilter.value = current;
-            }
-        }
-
-        function renderLogs(rows) {
-            logCount.textContent = `${rows.length} rows`;
-            if (!rows.length) {
-                logResults.innerHTML = `<div class="empty">No matching log entries for the current query.</div>`;
-                return;
-            }
-            logResults.innerHTML = rows.map((row) => `
-                <article class="log-line">
-                    <div class="log-line-head">
-                        <span>${row.tool} / ${row.file} / line ${row.line_number}</span>
-                        <span>${formatTime(row.timestamp)}</span>
+                        <div class="modal-subtitle" id="confirmSubtitle"></div>
                     </div>
-                    <div>${escapeHTML(row.text)}</div>
-                </article>
-            `).join("");
-        }
+                    <button class="modal-close" data-close="modalConfirm">
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div
+                        id="confirmMessage"
+                        class="text-sm"
+                        style="color: var(--text-2); line-height: 1.7"
+                    ></div>
+                    <div id="confirmAlert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-close="modalConfirm">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary" id="confirmOkBtn">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
 
-        function escapeHTML(value) {
-            return String(value || "")
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;");
-        }
+        <!-- Tool Detail Modal -->
+        <div class="modal-overlay" id="modalToolDetail">
+            <div class="modal modal-lg">
+                <div class="modal-header">
+                    <div>
+                        <div class="modal-title" id="detailToolName">
+                            Tool Details
+                        </div>
+                        <div class="modal-subtitle" id="detailToolSlug"></div>
+                    </div>
+                    <button class="modal-close" data-close="modalToolDetail">
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body" id="detailModalBody"></div>
+                <div class="modal-footer">
+                    <button
+                        class="btn btn-secondary"
+                        data-close="modalToolDetail"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
 
-        async function fetchReleaseSuggestions() {
-            await Promise.all(state.tools.map(async (tool) => {
-                try {
-                    const payload = await apiFetch(`/tools/${encodeURIComponent(tool.name)}/release-suggestion`);
-                    tool.release = payload.release || {};
-                } catch (error) {
-                    tool.release = { error: error.message };
-                }
-            }));
-        }
+        <!-- Action Progress Modal -->
+        <div class="modal-overlay" id="modalProgress">
+            <div class="modal">
+                <div class="modal-header">
+                    <div>
+                        <div class="modal-title" id="progressTitle">
+                            Running…
+                        </div>
+                        <div class="modal-subtitle" id="progressSubtitle"></div>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 10px;
+                            color: var(--text-2);
+                            font-size: 13px;
+                        "
+                    >
+                        <div class="spinner"></div>
+                        <span id="progressMessage">Please wait…</span>
+                    </div>
+                    <div class="action-log hidden" id="progressLog"></div>
+                </div>
+            </div>
+        </div>
 
-        async function loadTools() {
-            fleetStatus.innerHTML = `<span class="spinner"></span> Loading fleet`;
-            const payload = await apiFetch("/tools");
-            state.tools = (payload.tools || []).slice();
-            await fetchReleaseSuggestions();
-            renderSummary();
-            renderTools();
-            renderLogToolFilter();
-            fleetStatus.textContent = `Last refresh ${new Date().toLocaleTimeString()}`;
-        }
+        <!-- ─── Toast Container ─── -->
+        <div class="toast-container" id="toastContainer"></div>
 
-        async function runAction(label, action) {
-            fleetStatus.innerHTML = `<span class="spinner"></span> ${label}`;
-            try {
-                await action();
-                await loadTools();
-                setStatus(logStatus, "", "");
-            } catch (error) {
-                fleetStatus.textContent = "Action failed";
-                setStatus(logStatus, error.message, "error");
-            }
-        }
-
-        async function searchLogs() {
-            const query = {
-                tool: document.getElementById("logToolFilter").value,
-                file: document.getElementById("logFileFilter").value,
-                q: document.getElementById("logQuery").value.trim(),
-                limit: Number(document.getElementById("logLimit").value || 150)
+        <script>
+            // ═══════════════════════════════════════
+            //  State & Core Helpers
+            // ═══════════════════════════════════════
+            const state = {
+                csrfToken: "",
+                tools: [],
+                activeView: "overview",
+                lastLogQuery: { tool: "", file: "", q: "", limit: 150 },
             };
-            state.lastLogQuery = query;
-            setStatus(logStatus, "Searching logs...");
-            try {
-                const params = new URLSearchParams();
-                if (query.tool) params.set("tool", query.tool);
-                if (query.file) params.set("file", query.file);
-                if (query.q) params.set("q", query.q);
-                params.set("limit", String(query.limit));
-                const payload = await apiFetch(`/logs?${params.toString()}`);
-                renderLogs(payload.logs || []);
-                setStatus(logStatus, `Loaded ${payload.logs?.length || 0} rows.`, "ok");
-            } catch (error) {
-                renderLogs([]);
-                setStatus(logStatus, error.message, "error");
-            }
-        }
 
-        async function clearLogs() {
-            const tool = document.getElementById("logToolFilter").value;
-            const file = document.getElementById("logFileFilter").value;
-            if (!window.confirm(`Clear ${file || "all"} logs${tool ? ` for ${tool}` : " for all tools"}?`)) return;
-            await apiFetch("/logs/cleanup", {
-                method: "POST",
-                body: JSON.stringify({ tool, file })
+            const $ = (id) => document.getElementById(id);
+
+            function escapeHTML(v) {
+                return String(v ?? "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+            }
+
+            function formatTime(v) {
+                if (!v) return "—";
+                const d = new Date(v);
+                return isNaN(d) ? "—" : d.toLocaleString();
+            }
+
+            function formatBytes(v) {
+                const b = Number(v || 0);
+                if (b < 1024) return `${b} B`;
+                if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
+                if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
+                return `${(b / 1073741824).toFixed(1)} GB`;
+            }
+
+            function toolStatusClass(s) {
+                const v = (s || "").toLowerCase();
+                if (v.includes("online")) return "online";
+                if (v.includes("error")) return "errored";
+                if (v.includes("stop")) return "stopped";
+                return "unknown";
+            }
+
+            async function apiFetch(path, opts = {}) {
+                const init = { credentials: "same-origin", ...opts };
+                init.headers = { ...(opts.headers || {}) };
+                if (state.csrfToken && init.method && init.method !== "GET")
+                    init.headers["X-CSRF-Token"] = state.csrfToken;
+                if (init.body && !init.headers["Content-Type"])
+                    init.headers["Content-Type"] = "application/json";
+                const res = await fetch(path, init);
+                const text = await res.text();
+                const payload = text ? JSON.parse(text) : {};
+                if (!res.ok)
+                    throw new Error(
+                        payload.error || `${res.status} ${res.statusText}`,
+                    );
+                return payload;
+            }
+
+            // ═══════════════════════════════════════
+            //  Toast System
+            // ═══════════════════════════════════════
+            function toast(type, title, msg = "", duration = 4000) {
+                const icons = {
+                    success: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`,
+                    error: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+                    info: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+                };
+                const el = document.createElement("div");
+                el.className = `toast ${type}`;
+                el.innerHTML = `${icons[type] || icons.info}<div class="toast-text"><div class="toast-title">${escapeHTML(title)}</div>${msg ? `<div class="toast-msg">${escapeHTML(msg)}</div>` : ""}</div>`;
+                $("toastContainer").appendChild(el);
+                setTimeout(() => el.remove(), duration);
+            }
+
+            // ═══════════════════════════════════════
+            //  Status Bar
+            // ═══════════════════════════════════════
+            function setStatus(text, loading = false) {
+                const dot = $("statusDot");
+                $("statusText").textContent = text;
+                dot.className =
+                    "status-dot" +
+                    (loading
+                        ? " loading"
+                        : text.toLowerCase().includes("online") ||
+                            text.toLowerCase().includes("last")
+                          ? " online"
+                          : "");
+            }
+
+            function setLogStatus(text, kind = "") {
+                const el = $("logStatus");
+                el.className = `status-line ${kind}`.trim();
+                el.textContent = text;
+            }
+
+            // ═══════════════════════════════════════
+            //  Modal System
+            // ═══════════════════════════════════════
+            function openModal(id) {
+                $(id).classList.add("open");
+            }
+
+            function closeModal(id) {
+                $(id).classList.remove("open");
+            }
+
+            document.querySelectorAll("[data-close]").forEach((btn) => {
+                btn.addEventListener("click", () =>
+                    closeModal(btn.dataset.close),
+                );
             });
-            await searchLogs();
-            await loadTools();
-        }
 
-        async function initialize() {
-            try {
-                const auth = await apiFetch("/auth/status");
-                state.csrfToken = auth.csrf_token || "";
-                authMode(Boolean(auth.authenticated));
-                if (auth.authenticated) {
-                    await loadTools();
-                    await searchLogs();
-                } else if (!auth.token_ready) {
-                    setStatus(authStatus, "Server token is not initialized yet. Run `htm init` locally first.", "error");
-                } else if (auth.lockdown?.locked) {
-                    setStatus(authStatus, "Manager is in lockdown. Run `htm unlock` locally.", "error");
-                }
-            } catch (error) {
-                setStatus(authStatus, error.message, "error");
-            }
-        }
-
-        document.getElementById("loginForm").addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const button = document.getElementById("loginButton");
-            button.disabled = true;
-            setStatus(authStatus, "Validating key...");
-            try {
-                const payload = await apiFetch("/auth/login", {
-                    method: "POST",
-                    body: JSON.stringify({ token: document.getElementById("tokenInput").value })
+            document.querySelectorAll(".modal-overlay").forEach((overlay) => {
+                overlay.addEventListener("click", (e) => {
+                    if (e.target === overlay) closeModal(overlay.id);
                 });
-                state.csrfToken = payload.csrf_token || "";
-                document.getElementById("tokenInput").value = "";
-                authMode(true);
-                await loadTools();
-                await searchLogs();
-            } catch (error) {
-                setStatus(authStatus, error.message, "error");
-            } finally {
-                button.disabled = false;
-            }
-        });
+            });
 
-        document.getElementById("refreshButton").addEventListener("click", () => runAction("Refreshing tools", loadTools));
-        document.getElementById("updateAllButton").addEventListener("click", () => runAction("Updating all tools", async () => {
-            const payload = await apiFetch("/tools/update-all", { method: "POST", body: JSON.stringify({}) });
-            const failed = (payload.results || []).filter((item) => !item.ok);
-            if (failed.length) {
-                throw new Error(`Some updates failed: ${failed.map((item) => `${item.tool}: ${item.message || "failed"}`).join(" | ")}`);
+            function confirm(
+                title,
+                message,
+                alertHTML = "",
+                okLabel = "Confirm",
+                okClass = "btn-primary",
+            ) {
+                return new Promise((resolve) => {
+                    $("confirmTitle").textContent = title;
+                    $("confirmSubtitle").textContent = "";
+                    $("confirmMessage").innerHTML = message;
+                    $("confirmAlert").innerHTML = alertHTML;
+                    const btn = $("confirmOkBtn");
+                    btn.textContent = okLabel;
+                    btn.className = `btn ${okClass}`;
+                    const done = (val) => {
+                        closeModal("modalConfirm");
+                        btn.replaceWith(btn.cloneNode(true)); // remove old listener
+                        resolve(val);
+                    };
+                    $("confirmOkBtn").addEventListener(
+                        "click",
+                        () => done(true),
+                        { once: true },
+                    );
+                    openModal("modalConfirm");
+                });
             }
-        }));
-        document.getElementById("selfUpdateButton").addEventListener("click", () => runAction("Requesting HTM self-update", async () => {
-            await apiFetch("/self/update", { method: "POST", body: JSON.stringify({}) });
-        }));
-        document.getElementById("logoutButton").addEventListener("click", async () => {
-            await apiFetch("/auth/logout", { method: "POST", body: JSON.stringify({}) });
-            state.csrfToken = "";
-            authMode(false);
-            setStatus(authStatus, "Logged out.", "ok");
-        });
-        document.getElementById("searchLogsButton").addEventListener("click", searchLogs);
-        document.getElementById("refreshLogsButton").addEventListener("click", searchLogs);
-        document.getElementById("clearLogsButton").addEventListener("click", () => runAction("Cleaning logs", clearLogs));
 
-        toolGrid.addEventListener("click", async (event) => {
-            const button = event.target.closest("button[data-action]");
-            if (!button) return;
-            const tool = button.dataset.tool;
-            const action = button.dataset.action;
-            if (!tool || !action) return;
-            if (action === "search-logs") {
-                document.getElementById("logToolFilter").value = tool;
-                await searchLogs();
-                return;
+            function showProgress(title, msg = "") {
+                $("progressTitle").textContent = title;
+                $("progressSubtitle").textContent = msg;
+                $("progressMessage").textContent = "Please wait…";
+                $("progressLog").classList.add("hidden");
+                $("progressLog").textContent = "";
+                openModal("modalProgress");
             }
-            if (action === "clear-tool-logs") {
-                if (!window.confirm(`Clear all logs for ${tool}?`)) return;
-                await runAction(`Cleaning logs for ${tool}`, async () => {
-                    await apiFetch(`/tools/${encodeURIComponent(tool)}/logs/cleanup`, {
+
+            function hideProgress() {
+                closeModal("modalProgress");
+            }
+
+            // ═══════════════════════════════════════
+            //  View Router
+            // ═══════════════════════════════════════
+            function switchView(view) {
+                document
+                    .querySelectorAll(".view")
+                    .forEach((v) => v.classList.remove("active"));
+                document
+                    .querySelectorAll(".nav-item[data-view]")
+                    .forEach((n) => n.classList.remove("active"));
+                const el = $(`view-${view}`);
+                if (el) el.classList.add("active");
+                const nav = document.querySelector(
+                    `.nav-item[data-view="${view}"]`,
+                );
+                if (nav) nav.classList.add("active");
+                state.activeView = view;
+                const titles = {
+                    overview: "Overview",
+                    tools: "Tools",
+                    logs: "Logs",
+                };
+                $("topbarTitle").textContent = titles[view] || view;
+            }
+
+            document.querySelectorAll("[data-view]").forEach((el) => {
+                el.addEventListener("click", () => switchView(el.dataset.view));
+            });
+
+            // ═══════════════════════════════════════
+            //  Data Loading
+            // ═══════════════════════════════════════
+            async function fetchReleaseSuggestions() {
+                await Promise.all(
+                    state.tools.map(async (tool) => {
+                        try {
+                            const payload = await apiFetch(
+                                `/tools/${encodeURIComponent(tool.name)}/release-suggestion`,
+                            );
+                            tool.release = payload.release || {};
+                        } catch (err) {
+                            tool.release = { error: err.message };
+                        }
+                    }),
+                );
+            }
+
+            async function loadTools() {
+                setStatus("Loading…", true);
+                const payload = await apiFetch("/tools");
+                state.tools = (payload.tools || []).slice();
+                await fetchReleaseSuggestions();
+                renderAll();
+                setStatus(`Updated ${new Date().toLocaleTimeString()}`);
+            }
+
+            function renderAll() {
+                renderSummary();
+                renderToolGrid($("overviewToolGrid"), state.tools.slice(0, 6));
+                renderToolGrid($("toolGrid"), state.tools);
+                renderLogToolFilter();
+                $("navToolCount").textContent = state.tools.length;
+                const lbl = $("toolCountLabel");
+                if (lbl) lbl.textContent = `(${state.tools.length})`;
+            }
+
+            // ═══════════════════════════════════════
+            //  Summary / Stats
+            // ═══════════════════════════════════════
+            function renderSummary() {
+                const tools = state.tools;
+                const online = tools.filter(
+                    (t) => (t.pm2_status || "").toLowerCase() === "online",
+                ).length;
+                const updates = tools.filter(
+                    (t) => t.release?.update_available,
+                ).length;
+                const logBytes = tools.reduce(
+                    (s, t) => s + Number(t.logs?.total_bytes || 0),
+                    0,
+                );
+                const stats = [
+                    {
+                        label: "Registered Tools",
+                        value: tools.length,
+                        note: "Tools in the manager",
+                    },
+                    {
+                        label: "Online",
+                        value: online,
+                        note: `${tools.length - online} not running`,
+                    },
+                    {
+                        label: "Updates Available",
+                        value: updates,
+                        note: "GitHub release hints",
+                    },
+                    {
+                        label: "Log Volume",
+                        value: formatBytes(logBytes),
+                        note: "Retained runtime logs",
+                        raw: true,
+                    },
+                ];
+                $("summaryGrid").innerHTML = stats
+                    .map(
+                        (s) => `
+            <div class="stat-card">
+                <div class="stat-card-label">${s.label}</div>
+                <div class="stat-card-value">${s.raw ? s.value : s.value}</div>
+                <div class="stat-card-note">${s.note}</div>
+            </div>
+        `,
+                    )
+                    .join("");
+            }
+
+            // ═══════════════════════════════════════
+            //  Tool Grid
+            // ═══════════════════════════════════════
+            function renderToolGrid(container, tools) {
+                if (!container) return;
+                if (!tools.length) {
+                    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚙</div><div class="empty-state-text">No tools registered yet.</div></div>`;
+                    return;
+                }
+                container.innerHTML = tools
+                    .map((tool) => buildToolCard(tool))
+                    .join("");
+            }
+
+            function buildToolCard(tool) {
+                const release = tool.release || {};
+                const sc = toolStatusClass(tool.pm2_status);
+                const safeName = escapeHTML(tool.name || "");
+                const releaseLabel = release.error
+                    ? `<span class="release-error">⚠ ${escapeHTML(release.error)}</span>`
+                    : release.update_available
+                      ? `<span class="release-update">↑ Update available — ${escapeHTML(release.latest_tag || "")}</span>`
+                      : release.supported
+                        ? `<span class="release-ok">✓ Up to date (${escapeHTML(release.current_tag || "")})</span>`
+                        : `<span class="release-ok text-muted">No release pattern detected</span>`;
+
+                return `
+        <article class="tool-card">
+            <div class="tool-card-header">
+                <div class="tool-card-name-group">
+                    <div class="tool-card-slug">${escapeHTML(tool.slug || tool.name || "")}</div>
+                    <div class="tool-card-name">${safeName}</div>
+                </div>
+                <div class="status-pill ${sc}">${escapeHTML(tool.pm2_status || "unknown")}</div>
+            </div>
+            <div class="tool-card-meta">
+                <span class="meta-tag">v${escapeHTML(tool.version || "?")}</span>
+                <span class="meta-tag">${escapeHTML(formatTime(tool.updated_at))}</span>
+                <span class="meta-tag">${formatBytes(tool.logs?.total_bytes || 0)} logs</span>
+            </div>
+            <div class="tool-card-release">${releaseLabel}</div>
+            <div class="tool-card-actions">
+                <button class="btn btn-secondary btn-sm" data-action="start"           data-tool="${safeName}">Start</button>
+                <button class="btn btn-secondary btn-sm" data-action="stop"            data-tool="${safeName}">Stop</button>
+                <button class="btn btn-secondary btn-sm" data-action="restart"         data-tool="${safeName}">Restart</button>
+                <button class="btn btn-primary   btn-sm" data-action="update"          data-tool="${safeName}">Update</button>
+                <button class="btn btn-ghost     btn-sm" data-action="detail"          data-tool="${safeName}">Details</button>
+                <button class="btn btn-ghost     btn-sm" data-action="search-logs"     data-tool="${safeName}">Logs</button>
+                <button class="btn btn-danger    btn-sm" data-action="clear-tool-logs" data-tool="${safeName}">Clear Logs</button>
+            </div>
+        </article>`;
+            }
+
+            // ═══════════════════════════════════════
+            //  Log Filter Sync
+            // ═══════════════════════════════════════
+            function renderLogToolFilter() {
+                const sel = $("logToolFilter");
+                const cur = sel.value;
+                sel.innerHTML =
+                    `<option value="">All tools</option>` +
+                    state.tools
+                        .map(
+                            (t) =>
+                                `<option value="${escapeHTML(t.name)}">${escapeHTML(t.name)}</option>`,
+                        )
+                        .join("");
+                if ([...sel.options].some((o) => o.value === cur))
+                    sel.value = cur;
+            }
+
+            // ═══════════════════════════════════════
+            //  Log Searching
+            // ═══════════════════════════════════════
+            async function searchLogs() {
+                const query = {
+                    tool: $("logToolFilter").value,
+                    file: $("logFileFilter").value,
+                    q: $("logQuery").value.trim(),
+                    limit: Number($("logLimit").value || 150),
+                };
+                state.lastLogQuery = query;
+                setLogStatus("Searching…");
+                try {
+                    const params = new URLSearchParams();
+                    if (query.tool) params.set("tool", query.tool);
+                    if (query.file) params.set("file", query.file);
+                    if (query.q) params.set("q", query.q);
+                    params.set("limit", String(query.limit));
+                    const payload = await apiFetch(
+                        `/logs?${params.toString()}`,
+                    );
+                    renderLogs(payload.logs || []);
+                    setLogStatus(
+                        `${payload.logs?.length || 0} rows returned.`,
+                        "ok",
+                    );
+                } catch (err) {
+                    renderLogs([]);
+                    setLogStatus(err.message, "error");
+                }
+            }
+
+            function renderLogs(rows) {
+                $("logCount").textContent = `${rows.length} rows`;
+                if (!rows.length) {
+                    $("logResults").innerHTML =
+                        `<div class="empty-state"><div class="empty-state-text">No matching log entries.</div></div>`;
+                    return;
+                }
+                $("logResults").innerHTML = rows
+                    .map(
+                        (row) => `
+            <article class="log-line">
+                <div class="log-line-meta">
+                    <span>${escapeHTML(row.tool)} / ${escapeHTML(row.file)} / line ${row.line_number}</span>
+                    <span>${formatTime(row.timestamp)}</span>
+                </div>
+                <div class="log-line-text">${escapeHTML(row.text)}</div>
+            </article>
+        `,
+                    )
+                    .join("");
+            }
+
+            async function clearLogs() {
+                const tool = $("logToolFilter").value;
+                const file = $("logFileFilter").value;
+                const ok = await confirm(
+                    "Clear Logs",
+                    `This will permanently delete ${file || "all"} logs${tool ? ` for <strong>${escapeHTML(tool)}</strong>` : " for all tools"}.`,
+                    `<div class="alert alert-red" style="margin-top:4px">This action cannot be undone.</div>`,
+                    "Clear Logs",
+                    "btn-danger",
+                );
+                if (!ok) return;
+                try {
+                    await apiFetch("/logs/cleanup", {
                         method: "POST",
-                        body: JSON.stringify({})
+                        body: JSON.stringify({ tool, file }),
                     });
                     await searchLogs();
-                });
-                return;
+                    await loadTools();
+                    toast("success", "Logs cleared");
+                } catch (err) {
+                    toast("error", "Failed to clear logs", err.message);
+                }
             }
-            await runAction(`${action} ${tool}`, async () => {
-                await apiFetch(`/tools/${encodeURIComponent(tool)}/${action}`, {
-                    method: "POST",
-                    body: JSON.stringify({})
-                });
-            });
-        });
 
-        initialize();
-    </script>
-</body>
+            // ═══════════════════════════════════════
+            //  Tool Actions
+            // ═══════════════════════════════════════
+            async function runToolAction(tool, action) {
+                const labels = {
+                    start: "Starting",
+                    stop: "Stopping",
+                    restart: "Restarting",
+                    update: "Updating",
+                };
+                showProgress(`${labels[action] || action} ${tool}`);
+                try {
+                    await apiFetch(
+                        `/tools/${encodeURIComponent(tool)}/${action}`,
+                        { method: "POST", body: JSON.stringify({}) },
+                    );
+                    hideProgress();
+                    toast(
+                        "success",
+                        `${action.charAt(0).toUpperCase() + action.slice(1)} complete`,
+                        tool,
+                    );
+                    await loadTools();
+                } catch (err) {
+                    hideProgress();
+                    toast("error", `${action} failed`, err.message);
+                }
+            }
+
+            async function updateAllTools() {
+                const ok = await confirm(
+                    "Update All Tools",
+                    "This will attempt to update every registered tool to its latest version.",
+                    `<div class="alert alert-amber">Running tools will be restarted during the process.</div>`,
+                    "Update All",
+                    "btn-primary",
+                );
+                if (!ok) return;
+                showProgress("Updating all tools", "This may take a while…");
+                try {
+                    const payload = await apiFetch("/tools/update-all", {
+                        method: "POST",
+                        body: JSON.stringify({}),
+                    });
+                    const failed = (payload.results || []).filter((r) => !r.ok);
+                    hideProgress();
+                    if (failed.length) {
+                        toast(
+                            "error",
+                            "Some updates failed",
+                            failed
+                                .map(
+                                    (r) =>
+                                        `${r.tool}: ${r.message || "failed"}`,
+                                )
+                                .join(", "),
+                        );
+                    } else {
+                        toast("success", "All tools updated");
+                    }
+                    await loadTools();
+                } catch (err) {
+                    hideProgress();
+                    toast("error", "Update failed", err.message);
+                }
+            }
+
+            async function selfUpdate() {
+                const ok = await confirm(
+                    "Update HTM",
+                    "Request the Hubfly Tool Manager to update itself.",
+                    "",
+                    "Update HTM",
+                    "btn-primary",
+                );
+                if (!ok) return;
+                showProgress("Updating HTM…");
+                try {
+                    await apiFetch("/self/update", {
+                        method: "POST",
+                        body: JSON.stringify({}),
+                    });
+                    hideProgress();
+                    toast("success", "HTM self-update triggered");
+                } catch (err) {
+                    hideProgress();
+                    toast("error", "Self-update failed", err.message);
+                }
+            }
+
+            async function clearToolLogs(tool) {
+                const ok = await confirm(
+                    `Clear Logs — ${tool}`,
+                    `All log files for <strong>${escapeHTML(tool)}</strong> will be permanently deleted.`,
+                    `<div class="alert alert-red">This action cannot be undone.</div>`,
+                    "Clear Logs",
+                    "btn-danger",
+                );
+                if (!ok) return;
+                showProgress(`Clearing logs for ${tool}`);
+                try {
+                    await apiFetch(
+                        `/tools/${encodeURIComponent(tool)}/logs/cleanup`,
+                        { method: "POST", body: JSON.stringify({}) },
+                    );
+                    hideProgress();
+                    toast("success", "Logs cleared", tool);
+                    await searchLogs();
+                    await loadTools();
+                } catch (err) {
+                    hideProgress();
+                    toast("error", "Failed to clear logs", err.message);
+                }
+            }
+
+            function showToolDetail(toolName) {
+                const tool = state.tools.find((t) => t.name === toolName);
+                if (!tool) return;
+                const release = tool.release || {};
+                $("detailToolName").textContent = tool.name;
+                $("detailToolSlug").textContent = tool.slug || tool.name;
+
+                const releaseSection = release.supported
+                    ? `<div class="${release.update_available ? "alert alert-amber" : "alert alert-green"}">
+                <strong>Release:</strong> ${escapeHTML(release.repository || "")} — current <code>${escapeHTML(release.current_tag || "")}</code> / latest <code>${escapeHTML(release.latest_tag || "")}</code><br>
+                <span style="margin-top:4px;display:block">${escapeHTML(release.reason || (release.update_available ? `Suggested asset: ${release.latest_asset || "review latest release"}` : "Up to date."))}</span>
+                ${release.suggested_download_url ? `<code style="display:block;margin-top:6px;word-break:break-all">${escapeHTML(release.suggested_download_url)}</code>` : ""}
+               </div>`
+                    : release.error
+                      ? `<div class="alert alert-red">${escapeHTML(release.error)}</div>`
+                      : `<div class="alert alert-blue">No GitHub release pattern detected for this tool.</div>`;
+
+                $("detailModalBody").innerHTML = `
+            <div class="kv-grid">
+                <div class="kv-row"><div class="kv-key">Status</div><div class="kv-val">${escapeHTML(tool.pm2_status || "unknown")}</div></div>
+                <div class="kv-row"><div class="kv-key">Version</div><div class="kv-val">${escapeHTML(tool.version || "unknown")}</div></div>
+                <div class="kv-row"><div class="kv-key">Updated At</div><div class="kv-val">${escapeHTML(formatTime(tool.updated_at))}</div></div>
+                <div class="kv-row"><div class="kv-key">Log Volume</div><div class="kv-val">${formatBytes(tool.logs?.total_bytes || 0)}</div></div>
+                <div class="kv-row"><div class="kv-key">Download URL</div><div class="kv-val" style="word-break:break-all">${escapeHTML(tool.download_url || "n/a")}</div></div>
+                <div class="kv-row"><div class="kv-key">Binary Path</div><div class="kv-val">${escapeHTML(tool.binary_path || "n/a")}</div></div>
+                <div class="kv-row"><div class="kv-key">Boot Log Path</div><div class="kv-val">${escapeHTML(tool.logs?.boot_log_path || "n/a")}</div></div>
+                <div class="kv-row"><div class="kv-key">Last Log Write</div><div class="kv-val">${escapeHTML(formatTime(tool.logs?.last_write_at))}</div></div>
+            </div>
+            <div style="margin-top:4px">
+                <div class="form-label" style="margin-bottom:8px">Release Suggestion</div>
+                ${releaseSection}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <button class="btn btn-secondary btn-sm" data-action="start"       data-tool="${escapeHTML(tool.name)}">Start</button>
+                <button class="btn btn-secondary btn-sm" data-action="stop"        data-tool="${escapeHTML(tool.name)}">Stop</button>
+                <button class="btn btn-secondary btn-sm" data-action="restart"     data-tool="${escapeHTML(tool.name)}">Restart</button>
+                <button class="btn btn-primary   btn-sm" data-action="update"      data-tool="${escapeHTML(tool.name)}">Update</button>
+                <button class="btn btn-danger    btn-sm" data-action="clear-tool-logs" data-tool="${escapeHTML(tool.name)}">Clear Logs</button>
+            </div>
+        `;
+                openModal("modalToolDetail");
+            }
+
+            // ═══════════════════════════════════════
+            //  Delegated Click Handler — works in any container
+            // ═══════════════════════════════════════
+            document.addEventListener("click", async (e) => {
+                const btn = e.target.closest("button[data-action]");
+                if (!btn) return;
+                const tool = btn.dataset.tool;
+                const action = btn.dataset.action;
+                if (!tool || !action) return;
+
+                if (action === "detail") {
+                    showToolDetail(tool);
+                    return;
+                }
+                if (action === "search-logs") {
+                    $("logToolFilter").value = tool;
+                    switchView("logs");
+                    await searchLogs();
+                    return;
+                }
+                if (action === "clear-tool-logs") {
+                    if (document.querySelector("#modalToolDetail.open"))
+                        closeModal("modalToolDetail");
+                    await clearToolLogs(tool);
+                    return;
+                }
+                // start / stop / restart / update
+                if (action === "update") {
+                    const ok = await confirm(
+                        `Update — ${tool}`,
+                        `Download and install the latest version of <strong>${escapeHTML(tool)}</strong>.`,
+                        `<div class="alert alert-amber">The tool will be restarted during the update.</div>`,
+                        "Update",
+                        "btn-primary",
+                    );
+                    if (!ok) return;
+                }
+                if (document.querySelector("#modalToolDetail.open"))
+                    closeModal("modalToolDetail");
+                await runToolAction(tool, action);
+            });
+
+            // ═══════════════════════════════════════
+            //  Global Button Bindings
+            // ═══════════════════════════════════════
+            function bindAll() {
+                const logout = async () => {
+                    await apiFetch("/auth/logout", {
+                        method: "POST",
+                        body: JSON.stringify({}),
+                    });
+                    state.csrfToken = "";
+                    authMode(false);
+                };
+
+                $("topbarRefresh").onclick = () => loadTools();
+                $("topbarLogout").onclick = logout;
+                $("sidebarRefresh").onclick = () => loadTools();
+                $("sidebarUpdateAll").onclick = updateAllTools;
+                $("sidebarSelfUpdate").onclick = selfUpdate;
+                $("sidebarLogout").onclick = logout;
+                $("updateAllBtn").onclick = updateAllTools;
+                $("toolsRefreshBtn").onclick = () => loadTools();
+                $("searchLogsButton").onclick = searchLogs;
+                $("refreshLogsButton").onclick = searchLogs;
+                $("clearLogsButton").onclick = clearLogs;
+            }
+
+            // ═══════════════════════════════════════
+            //  Auth
+            // ═══════════════════════════════════════
+            function authMode(authenticated) {
+                $("authView").classList.toggle("hidden", authenticated);
+                $("appView").classList.toggle("hidden", !authenticated);
+            }
+
+            $("loginForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const btn = $("loginButton");
+                btn.disabled = true;
+                const status = $("authStatus");
+                status.className = "status-line";
+                status.textContent = "Verifying…";
+                try {
+                    const payload = await apiFetch("/auth/login", {
+                        method: "POST",
+                        body: JSON.stringify({ token: $("tokenInput").value }),
+                    });
+                    state.csrfToken = payload.csrf_token || "";
+                    $("tokenInput").value = "";
+                    authMode(true);
+                    bindAll();
+                    await loadTools();
+                    await searchLogs();
+                } catch (err) {
+                    status.className = "status-line error";
+                    status.textContent = err.message;
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            // ═══════════════════════════════════════
+            //  Initialize
+            // ═══════════════════════════════════════
+            async function initialize() {
+                try {
+                    const auth = await apiFetch("/auth/status");
+                    state.csrfToken = auth.csrf_token || "";
+                    authMode(Boolean(auth.authenticated));
+                    if (auth.authenticated) {
+                        bindAll();
+                        await loadTools();
+                        await searchLogs();
+                    } else {
+                        const status = $("authStatus");
+                        if (!auth.token_ready) {
+                            status.className = "status-line error";
+                            status.textContent =
+                                "Server token not initialized. Run `htm init` locally first.";
+                        } else if (auth.lockdown?.locked) {
+                            status.className = "status-line error";
+                            status.textContent =
+                                "Manager is in lockdown. Run `htm unlock` locally.";
+                        }
+                    }
+                } catch (err) {
+                    $("authStatus").className = "status-line error";
+                    $("authStatus").textContent = err.message;
+                }
+            }
+
+            initialize();
+        </script>
+    </body>
 </html>
