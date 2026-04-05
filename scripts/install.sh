@@ -171,7 +171,7 @@ ACTUAL="$(sha256sum "$TMP_DIR/$ASSET" | awk '{print $1}')"
 
 # Smart re-run cleanup:
 # - stop existing service cleanly
-# - preserve runtime state (data, backups, tools)
+# - preserve runtime state (data, backups, tools, logs, auth/session files)
 # - remove old app files before reinstall
 if [[ -d "$INSTALL_DIR" || -f "$SERVICE_FILE" ]]; then
   log "Existing installation detected. Starting smart cleanup."
@@ -181,9 +181,15 @@ if [[ -d "$INSTALL_DIR" || -f "$SERVICE_FILE" ]]; then
     run "Disabling existing service" systemctl disable "$SERVICE_NAME" || true
   fi
 
-  for d in data backups tools; do
+  for d in data backups tools logs configs; do
     if [[ -d "$INSTALL_DIR/$d" ]]; then
       run "Preserving $d directory" mv "$INSTALL_DIR/$d" "$PRESERVE_DIR/$d"
+    fi
+  done
+
+  for f in .token .lockdown.json .session-secret; do
+    if [[ -f "$INSTALL_DIR/$f" ]]; then
+      run "Preserving $f" mv "$INSTALL_DIR/$f" "$PRESERVE_DIR/$f"
     fi
   done
 
@@ -195,15 +201,21 @@ else
 fi
 
 ensure_pm2_prereqs
-run "Creating install directories" mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/tools"
+run "Creating install directories" mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$INSTALL_DIR/data" "$INSTALL_DIR/backups" "$INSTALL_DIR/tools" "$INSTALL_DIR/logs"
 run "Extracting release archive" tar -C "$STAGE_DIR" -xzf "$TMP_DIR/$ASSET"
 run "Installing release files" cp -a "$STAGE_DIR"/. "$INSTALL_DIR"/
 run "Setting executable permissions" chmod +x "$BIN_DIR/hubfly-tool-manager" "$BIN_DIR/htm"
 run "Normalizing systemd service file for self-update compatibility" normalize_service_file "$INSTALL_DIR/hubfly-tool-manager.service"
 
-for d in data backups tools; do
+for d in data backups tools logs configs; do
   if [[ -d "$PRESERVE_DIR/$d" ]]; then
     run "Restoring preserved $d directory" mv "$PRESERVE_DIR/$d" "$INSTALL_DIR/$d"
+  fi
+done
+
+for f in .token .lockdown.json .session-secret; do
+  if [[ -f "$PRESERVE_DIR/$f" ]]; then
+    run "Restoring preserved $f" mv "$PRESERVE_DIR/$f" "$INSTALL_DIR/$f"
   fi
 done
 
@@ -220,7 +232,6 @@ run "Starting service" systemctl restart "$SERVICE_NAME"
 run "Linking CLI binaries globally" ln -sf "$BIN_DIR/htm" /usr/local/bin/htm
 run "Linking server binary globally" ln -sf "$BIN_DIR/hubfly-tool-manager" /usr/local/bin/hubfly-tool-manager
 
-mkdir -p "$INSTALL_DIR/logs"
 run "Archiving installer log" cp "$LOG_FILE" "$INSTALL_DIR/logs/install-${RUN_ID}.log"
 
 run "Service status" systemctl --no-pager --full status "$SERVICE_NAME" || true

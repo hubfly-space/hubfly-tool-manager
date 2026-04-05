@@ -569,17 +569,40 @@ func (m *Manager) SelfUpdate() error {
 		return err
 	}
 
-	if _, err := m.runner.Run("tar", "-C", "/hubfly-tool-manager", "-xzf", assetPath); err != nil {
+	installDir := "/hubfly-tool-manager"
+	stageDir := filepath.Join(tmpDir, "stage")
+	preserveDir := filepath.Join(tmpDir, "preserve")
+	if err := os.MkdirAll(stageDir, 0o755); err != nil {
+		return fmt.Errorf("create self-update stage dir: %w", err)
+	}
+	if err := os.MkdirAll(preserveDir, 0o755); err != nil {
+		return fmt.Errorf("create self-update preserve dir: %w", err)
+	}
+	if _, err := m.runner.Run("tar", "-C", stageDir, "-xzf", assetPath); err != nil {
 		return fmt.Errorf("extract release archive: %w", err)
+	}
+
+	if err := preserveRuntimeState(installDir, preserveDir); err != nil {
+		return fmt.Errorf("preserve runtime state: %w", err)
+	}
+	if err := replaceInstallDirWithStage(stageDir, installDir); err != nil {
+		return fmt.Errorf("install staged release: %w", err)
+	}
+	if err := restoreRuntimeState(installDir, preserveDir); err != nil {
+		return fmt.Errorf("restore runtime state: %w", err)
 	}
 	_ = os.Chmod("/hubfly-tool-manager/bin/hubfly-tool-manager", 0o755)
 	_ = os.Chmod("/hubfly-tool-manager/bin/htm", 0o755)
+	_ = os.MkdirAll("/hubfly-tool-manager/logs", 0o755)
 
 	if os.Geteuid() == 0 {
 		_ = os.Symlink("/hubfly-tool-manager/bin/htm", "/usr/local/bin/htm")
 		_ = os.Symlink("/hubfly-tool-manager/bin/hubfly-tool-manager", "/usr/local/bin/hubfly-tool-manager")
 		_, _ = m.runner.Run("ln", "-sf", "/hubfly-tool-manager/bin/htm", "/usr/local/bin/htm")
 		_, _ = m.runner.Run("ln", "-sf", "/hubfly-tool-manager/bin/hubfly-tool-manager", "/usr/local/bin/hubfly-tool-manager")
+		if _, err := os.Stat("/hubfly-tool-manager/hubfly-tool-manager.service"); err == nil {
+			_, _ = m.runner.Run("install", "-m", "0644", "/hubfly-tool-manager/hubfly-tool-manager.service", "/etc/systemd/system/hubfly-tool-manager.service")
+		}
 	}
 
 	if err := m.runSystemctlWithSudo("daemon-reload"); err != nil {
@@ -587,6 +610,85 @@ func (m *Manager) SelfUpdate() error {
 	}
 	if err := m.runSystemctlWithSudo("restart", "hubfly-tool-manager"); err != nil {
 		return fmt.Errorf("self-update restart failed: %w", err)
+	}
+	return nil
+}
+
+func preserveRuntimeState(installDir, preserveDir string) error {
+	runtimeDirs := []string{"data", "backups", "tools", "logs", "configs"}
+	runtimeFiles := []string{".token", ".lockdown.json", ".session-secret"}
+
+	for _, name := range runtimeDirs {
+		src := filepath.Join(installDir, name)
+		if _, err := os.Stat(src); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return err
+		}
+		if err := os.Rename(src, filepath.Join(preserveDir, name)); err != nil {
+			return err
+		}
+	}
+	for _, name := range runtimeFiles {
+		src := filepath.Join(installDir, name)
+		if _, err := os.Stat(src); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return err
+		}
+		if err := os.Rename(src, filepath.Join(preserveDir, name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func replaceInstallDirWithStage(stageDir, installDir string) error {
+	entries, err := os.ReadDir(installDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return os.MkdirAll(installDir, 0o755)
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(installDir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	stageEntries, err := os.ReadDir(stageDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range stageEntries {
+		if err := copyPath(filepath.Join(stageDir, entry.Name()), filepath.Join(installDir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func restoreRuntimeState(installDir, preserveDir string) error {
+	entries, err := os.ReadDir(preserveDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		src := filepath.Join(preserveDir, entry.Name())
+		dst := filepath.Join(installDir, entry.Name())
+		if err := os.Rename(src, dst); err != nil {
+			if err := copyPath(src, dst); err != nil {
+				return err
+			}
+			if removeErr := os.RemoveAll(src); removeErr != nil {
+				return removeErr
+			}
+		}
 	}
 	return nil
 }

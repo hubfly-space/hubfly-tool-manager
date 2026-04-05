@@ -57,7 +57,10 @@ Flags:
 - `--data-dir` default `/hubfly-tool-manager/data`
 - `--backups-dir` default `/hubfly-tool-manager/backups`
 - `--tools-dir` default `/hubfly-tool-manager/tools`
+- `--logs-dir` default `/hubfly-tool-manager/logs`
 - `--token-file` default `/hubfly-tool-manager/.token`
+- `--lockdown-file` default `/hubfly-tool-manager/.lockdown.json`
+- `--session-secret-file` default `/hubfly-tool-manager/.session-secret`
 - `--pm2-bin` default `pm2`
 - `--git-bin` default `git`
 - `--command-timeout-secs` default `90`
@@ -68,7 +71,10 @@ Equivalent env vars:
 - `HTM_DATA_DIR`
 - `HTM_BACKUPS_DIR`
 - `HTM_TOOLS_DIR`
+- `HTM_LOGS_DIR`
 - `HTM_TOKEN_FILE`
+- `HTM_LOCKDOWN_FILE`
+- `HTM_SESSION_SECRET_FILE`
 - `HTM_PM2_BIN`
 - `HTM_GIT_BIN`
 - `HTM_COMMAND_TIMEOUT_SECS`
@@ -107,7 +113,7 @@ Web UI:
 ```bash
 open http://127.0.0.1:10000/web
 ```
-The page loads without auth, then uses the token you enter in-browser for protected API calls.
+The page loads without auth, shows a dedicated login screen, then creates a signed session cookie after the token is validated. Browser writes use CSRF protection. CLI/API bearer-token auth still works.
 
 Initialize token locally (overwrites existing token):
 ```bash
@@ -289,6 +295,15 @@ curl -s -X POST http://127.0.0.1:10000/self/update -H "Authorization: Bearer $TO
 Self-update runs `systemctl daemon-reload` then `systemctl restart hubfly-tool-manager` with direct and `sudo` fallback attempts.
 The endpoint returns immediately (`202 Accepted`) and executes update/restart asynchronously.
 Self-update and release downloads use retry/backoff with explicit TLS/connect timeouts to tolerate transient network errors.
+Self-update now preserves runtime state before replacing application files:
+- `/hubfly-tool-manager/data`
+- `/hubfly-tool-manager/backups`
+- `/hubfly-tool-manager/tools`
+- `/hubfly-tool-manager/logs`
+- `/hubfly-tool-manager/configs`
+- `/hubfly-tool-manager/.token`
+- `/hubfly-tool-manager/.lockdown.json`
+- `/hubfly-tool-manager/.session-secret`
 
 ## CLI
 Default server: `HTM_SERVER=http://127.0.0.1:10000`
@@ -325,6 +340,62 @@ Expected managed files in that folder:
 - optional `configs/`
 
 Backup captures these files if present.
+
+## Export And Import To Another Server
+
+If you want to move the full manager state to another server, copy the runtime state, not just the binaries.
+
+### What to export
+
+These paths contain the important state:
+- `/hubfly-tool-manager/data` for the SQLite database with registered tools/history
+- `/hubfly-tool-manager/tools` for downloaded binaries and per-tool files
+- `/hubfly-tool-manager/backups` for rollback snapshots
+- `/hubfly-tool-manager/logs` if you also want existing logs
+- `/hubfly-tool-manager/configs` if you use shared manager-side config files
+- `/hubfly-tool-manager/.token`
+- `/hubfly-tool-manager/.lockdown.json`
+- `/hubfly-tool-manager/.session-secret`
+
+### Create a full export archive
+
+Run this on the source server:
+
+```bash
+systemctl stop hubfly-tool-manager
+tar -C /hubfly-tool-manager -czf /root/hubfly-tool-manager-export.tar.gz \
+  data tools backups logs configs \
+  .token .lockdown.json .session-secret
+systemctl start hubfly-tool-manager
+```
+
+If `configs` or `logs` do not exist on that server, remove them from the tar command.
+
+### Import on a new server
+
+1. Install the same or newer HTM release on the target server.
+2. Stop the service.
+3. Extract the archive into `/hubfly-tool-manager`.
+4. Start the service again.
+
+Example:
+
+```bash
+systemctl stop hubfly-tool-manager
+tar -C /hubfly-tool-manager -xzf /root/hubfly-tool-manager-export.tar.gz
+chown -R root:root /hubfly-tool-manager
+systemctl start hubfly-tool-manager
+```
+
+### Verify after import
+
+```bash
+htm health
+htm list
+pm2 status
+```
+
+If PM2 is empty but `htm list` still shows tools, restart the manager once and it will reconcile registered tools back into PM2 on boot.
 
 ## GitHub Release Workflow
 
