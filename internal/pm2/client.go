@@ -19,6 +19,11 @@ type Client struct {
 	logger *log.Logger
 }
 
+type StartOptions struct {
+	StdoutPath string
+	StderrPath string
+}
+
 func New(pm2Bin string, timeout time.Duration, logger *log.Logger) *Client {
 	if pm2Bin == "" {
 		pm2Bin = "pm2"
@@ -62,28 +67,36 @@ func (c *Client) Status(name string) (string, error) {
 	return "not_managed", nil
 }
 
-func (c *Client) StartOrReload(t model.ToolConfig) error {
+func (c *Client) StartOrReload(t model.ToolConfig, opts StartOptions) error {
 	status, err := c.Status(t.Name)
 	if err != nil {
 		return err
 	}
 
-	if status == "not_managed" {
-		args := []string{"start", t.BinaryPath, "--name", t.Name, "--cwd", t.ToolDir}
-		if len(t.Args) > 0 {
-			args = append(args, "--")
-			args = append(args, t.Args...)
+	if status != "not_managed" {
+		if err := c.Stop(t.Name); err != nil {
+			return err
 		}
-		_, err := c.runner.Run(c.pm2Bin, args...)
-		if err != nil {
-			return fmt.Errorf("pm2 start: %w", err)
+		if err := c.Delete(t.Name); err != nil {
+			return err
 		}
-		return c.waitUntilOnline(t.Name)
 	}
 
-	_, err = c.runner.Run(c.pm2Bin, "restart", t.Name)
+	args := []string{"start", t.BinaryPath, "--name", t.Name, "--cwd", t.ToolDir, "--time"}
+	if strings.TrimSpace(opts.StdoutPath) != "" {
+		args = append(args, "--output", opts.StdoutPath)
+	}
+	if strings.TrimSpace(opts.StderrPath) != "" {
+		args = append(args, "--error", opts.StderrPath)
+	}
+	if len(t.Args) > 0 {
+		args = append(args, "--")
+		args = append(args, t.Args...)
+	}
+
+	_, err = c.runner.Run(c.pm2Bin, args...)
 	if err != nil {
-		return fmt.Errorf("pm2 restart: %w", err)
+		return fmt.Errorf("pm2 start: %w", err)
 	}
 	return c.waitUntilOnline(t.Name)
 }

@@ -1,1245 +1,853 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Hubfly Tool Manager</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-            href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <style>
-            *,
-            *::before,
-            *::after {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hubfly Tool Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #07111b;
+            --bg-soft: #0d1723;
+            --panel: rgba(12, 23, 35, 0.86);
+            --panel-strong: #122436;
+            --panel-muted: #0f1d2c;
+            --border: rgba(138, 178, 230, 0.18);
+            --border-strong: rgba(138, 178, 230, 0.34);
+            --text: #eef6ff;
+            --muted: #95a9c1;
+            --accent: #59d0b4;
+            --accent-2: #f8b84e;
+            --danger: #ff7b7b;
+            --success: #69dd9a;
+            --shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+            --radius: 18px;
+            --radius-sm: 12px;
+            --font-body: "Space Grotesk", sans-serif;
+            --font-mono: "IBM Plex Mono", monospace;
+        }
 
-            :root {
-                --bg: #f7f7f6;
-                --surface: #ffffff;
-                --border: #e4e4e0;
-                --border-strong: #c8c8c0;
-                --ink: #111110;
-                --ink-2: #3c3c38;
-                --ink-3: #888880;
-                --ink-4: #b4b4ac;
-                --accent: #111110;
-                --accent-fg: #ffffff;
-                --red: #c0392b;
-                --red-bg: #fef2f0;
-                --red-border: #f5c6c0;
-                --green: #1a7f4e;
-                --green-bg: #f0faf5;
-                --green-border: #b8e8cf;
-                --amber: #946800;
-                --amber-bg: #fefbec;
-                --amber-border: #f0e0a0;
-                --font-body: "Instrument Sans", sans-serif;
-                --font-mono: "IBM Plex Mono", monospace;
-                --r: 6px;
-                --r-lg: 10px;
-            }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background:
+                radial-gradient(circle at top left, rgba(89, 208, 180, 0.18), transparent 30%),
+                radial-gradient(circle at top right, rgba(248, 184, 78, 0.14), transparent 28%),
+                linear-gradient(180deg, #07111b 0%, #08131f 50%, #091827 100%);
+            color: var(--text);
+            font-family: var(--font-body);
+        }
 
-            html,
-            body {
-                height: 100%;
-                background: var(--bg);
-                color: var(--ink);
-                font-family: var(--font-body);
-                font-size: 13px;
-                line-height: 1.5;
-                -webkit-font-smoothing: antialiased;
-            }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 28px 28px;
+            pointer-events: none;
+            opacity: 0.4;
+        }
 
-            /* ─── Layout ─── */
-            .shell {
-                display: grid;
-                grid-template-rows: auto auto 1fr;
-                min-height: 100vh;
-                max-width: 1300px;
-                margin: 0 auto;
-                padding: 20px 20px 32px;
-                gap: 12px;
-            }
+        button, input, select {
+            font: inherit;
+        }
 
-            /* ─── Topbar ─── */
-            .topbar {
-                display: grid;
-                grid-template-columns: 1fr auto;
-                align-items: center;
-                gap: 16px;
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: var(--r-lg);
-                padding: 14px 20px;
-            }
-            .topbar-left {
-                display: flex;
-                align-items: baseline;
-                gap: 10px;
-            }
-            .topbar-eyebrow {
-                font-family: var(--font-mono);
-                font-size: 10px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                color: var(--ink-3);
-            }
-            .topbar-title {
-                font-size: 16px;
-                font-weight: 700;
-                color: var(--ink);
-                letter-spacing: -0.01em;
-            }
-            .topbar-right {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
+        .hidden { display: none !important; }
 
-            .stat-chip {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                padding: 5px 10px;
-                border: 1px solid var(--border);
-                border-radius: var(--r);
-                background: var(--bg);
-            }
-            .stat-chip-label {
-                font-family: var(--font-mono);
-                font-size: 10px;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-                color: var(--ink-3);
-            }
-            .stat-chip-value {
-                font-family: var(--font-mono);
-                font-size: 12px;
-                font-weight: 600;
-                color: var(--ink);
-            }
-            .stat-chip-value.selected-ver {
-                font-family: var(--font-mono);
-                font-size: 12px;
-                font-weight: 600;
-                color: var(--ink);
-            }
-            .stat-chip.dark {
-                background: var(--ink);
-                border-color: var(--ink);
-            }
-            .stat-chip.dark .stat-chip-label {
-                color: #888;
-            }
-            .stat-chip.dark .stat-chip-value {
-                color: #fff;
-            }
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 24px;
+        }
 
-            /* ─── Control row ─── */
-            .control-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-            }
-            @media (max-width: 700px) {
-                .control-row {
-                    grid-template-columns: 1fr;
-                }
-            }
+        .auth-shell {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
 
-            .card {
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: var(--r-lg);
-                padding: 16px 18px;
-            }
-            .card-label {
-                font-family: var(--font-mono);
-                font-size: 9.5px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.1em;
-                color: var(--ink-3);
-                margin-bottom: 10px;
-            }
+        .auth-card {
+            width: min(460px, 100%);
+            background: linear-gradient(180deg, rgba(17, 35, 52, 0.95), rgba(10, 22, 34, 0.96));
+            border: 1px solid var(--border-strong);
+            border-radius: 28px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+        }
 
-            /* ─── Auth card ─── */
-            .auth-row {
-                display: flex;
-                gap: 6px;
-                align-items: center;
-            }
-            .auth-hint {
-                margin-top: 8px;
-                font-size: 11px;
-                color: var(--ink-3);
-                font-family: var(--font-mono);
-            }
+        .eyebrow, .mono {
+            font-family: var(--font-mono);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 12px;
+            color: var(--muted);
+        }
 
-            /* ─── Register form ─── */
-            .reg-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 6px;
-            }
-            .reg-grid .span2 {
-                grid-column: 1 / -1;
-            }
+        h1, h2, h3 {
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
 
-            /* ─── Inputs / Buttons ─── */
-            input[type="text"],
-            input[type="password"],
-            input:not([type]) {
-                height: 32px;
-                padding: 0 10px;
-                font-family: var(--font-body);
-                font-size: 12px;
-                background: var(--bg);
-                border: 1px solid var(--border);
-                border-radius: var(--r);
-                color: var(--ink);
-                outline: none;
-                width: 100%;
-                transition:
-                    border-color 0.12s,
-                    box-shadow 0.12s;
-            }
-            input:focus {
-                border-color: var(--ink);
-                box-shadow: 0 0 0 2px rgba(17, 17, 16, 0.07);
-                background: var(--surface);
-            }
-            input::placeholder {
-                color: var(--ink-4);
-            }
+        .auth-card h1 {
+            margin-top: 10px;
+            font-size: 38px;
+            line-height: 1;
+        }
 
-            .btn {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                height: 32px;
-                padding: 0 14px;
-                font-family: var(--font-body);
-                font-size: 12px;
-                font-weight: 600;
-                border-radius: var(--r);
-                cursor: pointer;
-                border: 1px solid transparent;
-                transition:
-                    background 0.1s,
-                    border-color 0.1s,
-                    opacity 0.1s;
-                white-space: nowrap;
-            }
-            .btn-primary {
-                background: var(--accent);
-                color: var(--accent-fg);
-                border-color: var(--accent);
-            }
-            .btn-primary:hover {
-                background: #2a2a28;
-            }
-            .btn-ghost {
-                background: var(--bg);
-                color: var(--ink-2);
-                border-color: var(--border);
-            }
-            .btn-ghost:hover {
-                background: #eeeeed;
-                border-color: var(--border-strong);
-            }
-            .btn-sm {
-                height: 26px;
-                padding: 0 10px;
-                font-size: 11px;
-            }
-            .btn-full {
-                width: 100%;
-            }
+        .lede {
+            margin-top: 14px;
+            color: #bdd0e7;
+            line-height: 1.6;
+        }
 
-            /* ─── Notice ─── */
-            #notice {
-                display: none;
-                padding: 9px 14px;
-                border-radius: var(--r);
-                font-size: 12px;
-                font-family: var(--font-mono);
-                font-weight: 500;
-                border: 1px solid;
-                animation: slide-in 0.15s ease;
-            }
-            #notice.notice-error {
-                background: var(--red-bg);
-                color: var(--red);
-                border-color: var(--red-border);
-            }
-            #notice.notice-success {
-                background: var(--green-bg);
-                color: var(--green);
-                border-color: var(--green-border);
-            }
-            @keyframes slide-in {
-                from {
-                    opacity: 0;
-                    transform: translateY(-4px);
-                }
-                to {
-                    opacity: 1;
-                    transform: none;
-                }
-            }
+        .login-form {
+            margin-top: 28px;
+            display: grid;
+            gap: 12px;
+        }
 
-            /* ─── Main split ─── */
-            .main-split {
-                display: grid;
-                grid-template-columns: 380px 1fr;
-                gap: 10px;
-                min-height: 0;
-            }
-            @media (max-width: 900px) {
-                .main-split {
-                    grid-template-columns: 1fr;
-                }
-            }
+        .field, .select, .search {
+            width: 100%;
+            border: 1px solid var(--border);
+            background: rgba(7, 17, 27, 0.8);
+            color: var(--text);
+            border-radius: 14px;
+            height: 48px;
+            padding: 0 14px;
+            outline: none;
+            transition: border-color 0.15s ease, transform 0.15s ease;
+        }
 
-            /* ─── Tools panel ─── */
-            .panel {
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: var(--r-lg);
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-            }
-            .panel-head {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 14px 16px 12px;
-                border-bottom: 1px solid var(--border);
-            }
-            .panel-head-title {
-                font-size: 13px;
-                font-weight: 700;
-                color: var(--ink);
-            }
-            .panel-head-sub {
-                font-size: 11px;
-                color: var(--ink-3);
-                margin-top: 1px;
-            }
-            .panel-body {
-                flex: 1;
-                overflow-y: auto;
-                padding: 10px;
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-            }
+        .field:focus, .select:focus, .search:focus {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
 
-            /* ─── Tool card ─── */
-            .tool-card {
-                position: relative;
-                background: var(--bg);
-                border: 1px solid var(--border);
-                border-radius: var(--r);
-                padding: 11px 12px 10px;
-                cursor: pointer;
-                transition:
-                    border-color 0.1s,
-                    box-shadow 0.1s,
-                    background 0.1s;
-                text-align: left;
-                width: 100%;
-            }
-            .tool-card:hover {
-                border-color: var(--border-strong);
-                background: #f2f2f0;
-            }
-            .tool-card.active {
-                border-color: var(--ink);
-                background: var(--surface);
-                box-shadow: 0 1px 6px rgba(17, 17, 16, 0.08);
-            }
-            .tool-card-top {
-                display: flex;
-                align-items: flex-start;
-                justify-content: space-between;
-                gap: 8px;
-                margin-bottom: 8px;
-            }
-            .tool-card-name {
-                font-size: 13px;
-                font-weight: 700;
-                color: var(--ink);
-                line-height: 1.3;
-            }
-            .tool-card-ver {
-                font-family: var(--font-mono);
-                font-size: 10px;
-                color: var(--ink-3);
-                margin-top: 1px;
-            }
-            .tool-card-actions {
-                display: flex;
-                gap: 4px;
-                margin-top: 2px;
-            }
-            .tool-action {
-                flex: 1;
-                height: 24px;
-                padding: 0 8px;
-                font-family: var(--font-body);
-                font-size: 10.5px;
-                font-weight: 600;
-                border-radius: 4px;
-                cursor: pointer;
-                border: 1px solid var(--border);
-                background: var(--surface);
-                color: var(--ink-2);
-                transition:
-                    background 0.1s,
-                    border-color 0.1s;
-            }
-            .tool-action:hover {
-                background: #eeeeed;
-                border-color: var(--border-strong);
-            }
-            .tool-action.update-btn {
-                background: var(--ink);
-                color: #fff;
-                border-color: var(--ink);
-            }
-            .tool-action.update-btn:hover {
-                background: #333;
-            }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 42px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            padding: 0 16px;
+            cursor: pointer;
+            transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+            font-weight: 700;
+        }
 
-            /* ─── Status badge ─── */
-            .badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                padding: 2px 7px;
-                border-radius: 3px;
-                font-family: var(--font-mono);
-                font-size: 9.5px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                border: 1px solid;
-                white-space: nowrap;
-            }
-            .badge::before {
-                content: "";
-                width: 5px;
-                height: 5px;
-                border-radius: 50%;
-                flex-shrink: 0;
-            }
-            .badge-online {
-                background: var(--green-bg);
-                color: var(--green);
-                border-color: var(--green-border);
-            }
-            .badge-online::before {
-                background: var(--green);
-            }
-            .badge-errored {
-                background: var(--red-bg);
-                color: var(--red);
-                border-color: var(--red-border);
-            }
-            .badge-errored::before {
-                background: var(--red);
-            }
-            .badge-stopped,
-            .badge-not_managed {
-                background: var(--amber-bg);
-                color: var(--amber);
-                border-color: var(--amber-border);
-            }
-            .badge-stopped::before,
-            .badge-not_managed::before {
-                background: var(--amber);
-            }
-            .badge-unknown {
-                background: #f4f4f2;
-                color: var(--ink-3);
-                border-color: var(--border);
-            }
-            .badge-unknown::before {
-                background: var(--ink-4);
-            }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:disabled { cursor: progress; opacity: 0.55; transform: none; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #49b2d5);
+            color: #03121a;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            border-color: var(--border);
+        }
+        .btn-danger {
+            background: rgba(255, 123, 123, 0.12);
+            color: #ffd4d4;
+            border-color: rgba(255, 123, 123, 0.4);
+        }
+        .btn-small {
+            min-height: 34px;
+            font-size: 13px;
+            padding: 0 12px;
+        }
 
-            /* ─── Detail panel ─── */
-            .detail-scroll {
-                flex: 1;
-                overflow-y: auto;
-                padding: 16px 18px;
-                display: flex;
-                flex-direction: column;
-                gap: 14px;
-            }
+        .status-line {
+            margin-top: 14px;
+            min-height: 22px;
+            color: #d5e2f2;
+        }
+        .status-line.error { color: #ffb1b1; }
+        .status-line.ok { color: #b6f2c8; }
 
-            .detail-empty {
-                flex: 1;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 40px;
-                text-align: center;
-                font-size: 12px;
-                color: var(--ink-4);
-                font-family: var(--font-mono);
-            }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            padding: 28px;
+            border-radius: 28px;
+            background: linear-gradient(180deg, rgba(16, 30, 45, 0.94), rgba(10, 21, 33, 0.96));
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
 
-            /* ─── Meta grid ─── */
-            .meta-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 6px;
-            }
-            .meta-row.single {
-                grid-template-columns: 1fr;
-            }
-            .meta-item {
-                background: var(--bg);
-                border: 1px solid var(--border);
-                border-radius: var(--r);
-                padding: 9px 11px;
-            }
-            .meta-key {
-                font-family: var(--font-mono);
-                font-size: 9px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.1em;
-                color: var(--ink-3);
-                margin-bottom: 3px;
-            }
-            .meta-val {
-                font-family: var(--font-mono);
-                font-size: 11.5px;
-                color: var(--ink);
-                word-break: break-all;
-                line-height: 1.4;
-            }
-            .meta-val.muted {
-                color: var(--ink-3);
-            }
+        .title {
+            font-size: clamp(34px, 6vw, 62px);
+            line-height: 0.92;
+            margin-top: 8px;
+        }
 
-            /* ─── Divider ─── */
-            .divider {
-                border: none;
-                border-top: 1px solid var(--border);
-                margin: 2px 0;
-            }
+        .title span { color: var(--accent); }
 
-            /* ─── Update form ─── */
-            .update-form-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 6px;
-            }
-            .update-form-grid .span2 {
-                grid-column: 1 / -1;
-            }
-            .update-form-actions {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
-                margin-bottom: 10px;
-            }
-            .update-form-title {
-                font-size: 12px;
-                font-weight: 700;
-                color: var(--ink);
-            }
-            .update-form-sub {
-                font-size: 11px;
-                color: var(--ink-3);
-                margin-top: 1px;
-            }
+        .topbar-actions, .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
 
-            /* ─── Empty state ─── */
-            .tools-empty {
-                flex: 1;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 40px;
-                text-align: center;
-                font-size: 11.5px;
-                color: var(--ink-4);
-                font-family: var(--font-mono);
-                border: 1px dashed var(--border);
-                border-radius: var(--r);
-                margin: 4px;
-            }
+        .summary-grid, .tool-grid, .logs-grid {
+            display: grid;
+            gap: 18px;
+            margin-top: 18px;
+        }
 
-            /* ─── Scrollbar ─── */
-            ::-webkit-scrollbar {
-                width: 5px;
-                height: 5px;
-            }
-            ::-webkit-scrollbar-track {
-                background: transparent;
-            }
-            ::-webkit-scrollbar-thumb {
-                background: var(--border-strong);
-                border-radius: 99px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="shell">
-            <!-- ── Topbar ── -->
-            <header class="topbar">
-                <div class="topbar-left">
-                    <span class="topbar-eyebrow">Hubfly</span>
-                    <span class="topbar-title">Tool Manager</span>
-                </div>
-                <div class="topbar-right">
-                    <div class="stat-chip">
-                        <span class="stat-chip-label">Version</span>
-                        <span id="managerVersion" class="stat-chip-value"
-                            >—</span
-                        >
-                    </div>
-                    <div class="stat-chip">
-                        <span class="stat-chip-label">Tools</span>
-                        <span id="toolCount" class="stat-chip-value">0</span>
-                    </div>
-                    <div class="stat-chip dark">
-                        <span class="stat-chip-label">Selected</span>
-                        <span id="selectedVersion" class="stat-chip-value"
-                            >None</span
-                        >
-                    </div>
-                </div>
-            </header>
+        .summary-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
 
-            <!-- ── Control row ── -->
-            <div class="control-row">
-                <!-- Auth -->
-                <div class="card">
-                    <p class="card-label">Security Connection</p>
-                    <div class="auth-row">
-                        <input
-                            id="tokenInput"
-                            type="password"
-                            placeholder="Paste your API token…"
-                            style="flex: 1"
-                        />
-                        <button id="saveTokenButton" class="btn btn-primary">
-                            Connect
-                        </button>
-                        <button id="refreshButton" class="btn btn-ghost">
-                            Refresh
-                        </button>
-                    </div>
-                    <p id="authHint" class="auth-hint">
-                        Unauthenticated — provide a token to enable tool
-                        management.
-                    </p>
-                </div>
+        .tool-grid {
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        }
 
-                <!-- Register -->
-                <div class="card">
-                    <p class="card-label">Register New Tool</p>
-                    <form id="registerForm">
-                        <div class="reg-grid">
-                            <input
-                                name="name"
-                                required
-                                placeholder="Tool name"
-                            />
-                            <input
-                                name="download_url"
-                                required
-                                placeholder="Download URL"
-                            />
-                            <input
-                                name="checksum"
-                                placeholder="Checksum (optional)"
-                                class="span2"
-                            />
-                            <input
-                                name="version_command"
-                                placeholder="Version cmd (e.g. {binary},version)"
-                            />
-                            <input name="args" placeholder="Args CSV" />
-                            <button
-                                type="submit"
-                                class="btn btn-primary btn-full span2"
-                            >
-                                Register Tool
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+        .logs-grid {
+            grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+        }
 
-            <!-- ── Notice ── -->
-            <div id="notice"></div>
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+        }
 
-            <!-- ── Main split ── -->
-            <div class="main-split">
-                <!-- Tools list -->
-                <div class="panel">
-                    <div class="panel-head">
-                        <div>
-                            <div class="panel-head-title">Managed Tools</div>
-                            <div class="panel-head-sub">
-                                Status, version &amp; quick actions
-                            </div>
-                        </div>
-                    </div>
-                    <div class="panel-body" id="toolGrid"></div>
-                </div>
+        .stat {
+            min-height: 132px;
+            display: grid;
+            align-content: space-between;
+        }
 
-                <!-- Detail panel -->
-                <div class="panel">
-                    <div class="panel-head">
-                        <div>
-                            <div class="panel-head-title" id="detailTitle">
-                                Tool Details
-                            </div>
-                            <div class="panel-head-sub">
-                                Select a tool to inspect its configuration.
-                            </div>
-                        </div>
-                        <button
-                            id="reloadDetailsButton"
-                            class="btn btn-ghost btn-sm"
-                        >
-                            Reload
-                        </button>
-                    </div>
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -0.04em;
+        }
 
-                    <div id="detailEmpty" class="detail-empty">
-                        ← Select a tool to inspect its stored configuration.
-                    </div>
+        .stat-sub {
+            color: var(--muted);
+            line-height: 1.5;
+        }
 
-                    <div
-                        id="detailPanel"
-                        class="detail-scroll"
-                        style="display: none"
-                    >
-                        <!-- Status + Version -->
-                        <div class="meta-row">
-                            <div class="meta-item">
-                                <div class="meta-key">Process Status</div>
-                                <div id="detailStatus" class="meta-val"></div>
-                            </div>
-                            <div class="meta-item">
-                                <div class="meta-key">Current Version</div>
-                                <div id="detailVersion" class="meta-val"></div>
-                            </div>
-                        </div>
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
 
-                        <!-- Download URL -->
-                        <div class="meta-row single">
-                            <div class="meta-item">
-                                <div class="meta-key">Download URL</div>
-                                <div
-                                    id="detailDownloadURL"
-                                    class="meta-val"
-                                ></div>
-                            </div>
-                        </div>
+        .tool-card {
+            display: grid;
+            gap: 14px;
+            background: linear-gradient(180deg, rgba(18, 36, 54, 0.92), rgba(12, 24, 36, 0.96));
+        }
 
-                        <!-- Checksum + Slug -->
-                        <div class="meta-row">
-                            <div class="meta-item">
-                                <div class="meta-key">Checksum</div>
-                                <div id="detailChecksum" class="meta-val"></div>
-                            </div>
-                            <div class="meta-item">
-                                <div class="meta-key">Identifier (Slug)</div>
-                                <div id="detailSlug" class="meta-val"></div>
-                            </div>
-                        </div>
+        .tool-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
 
-                        <!-- Tool Dir + Binary -->
-                        <div class="meta-row">
-                            <div class="meta-item">
-                                <div class="meta-key">Tool Directory</div>
-                                <div id="detailToolDir" class="meta-val"></div>
-                            </div>
-                            <div class="meta-item">
-                                <div class="meta-key">Binary Path</div>
-                                <div
-                                    id="detailBinaryPath"
-                                    class="meta-val"
-                                ></div>
-                            </div>
-                        </div>
+        .tool-name {
+            font-size: 24px;
+        }
 
-                        <!-- Args + Version Command -->
-                        <div class="meta-row">
-                            <div class="meta-item">
-                                <div class="meta-key">Execution Args</div>
-                                <div id="detailArgs" class="meta-val"></div>
-                            </div>
-                            <div class="meta-item">
-                                <div class="meta-key">Version Command</div>
-                                <div
-                                    id="detailVersionCommand"
-                                    class="meta-val"
-                                ></div>
-                            </div>
-                        </div>
+        .pill-row, .mini-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
 
-                        <hr class="divider" />
+        .pill {
+            border-radius: 999px;
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.04);
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
 
-                        <!-- Update form -->
-                        <form id="updateForm">
-                            <div class="update-form-actions">
-                                <div>
-                                    <div class="update-form-title">
-                                        Update Configuration
-                                    </div>
-                                    <div class="update-form-sub">
-                                        Modify metadata or force a sync.
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    id="manualUpdateButton"
-                                    class="btn btn-ghost btn-sm"
-                                >
-                                    Run Update Now
-                                </button>
-                            </div>
-                            <div class="update-form-grid">
-                                <input
-                                    name="download_url"
-                                    placeholder="New download URL"
-                                    class="span2"
-                                />
-                                <input
-                                    name="checksum"
-                                    placeholder="New checksum (blank = keep)"
-                                />
-                                <input
-                                    name="version_command"
-                                    placeholder="New version command CSV"
-                                />
-                                <input
-                                    name="args"
-                                    placeholder="New args CSV"
-                                    class="span2"
-                                />
-                                <button
-                                    type="submit"
-                                    class="btn btn-primary span2"
-                                    style="margin-top: 2px"
-                                >
-                                    Save &amp; Update
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
+        .pill.online { color: #baf9cd; border-color: rgba(105, 221, 154, 0.4); }
+        .pill.stopped { color: #ffd7b0; border-color: rgba(248, 184, 78, 0.45); }
+        .pill.errored { color: #ffc4c4; border-color: rgba(255, 123, 123, 0.45); }
+
+        .keyvals {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .kv {
+            padding: 12px;
+            border-radius: 14px;
+            background: var(--panel-muted);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .kv-label {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .kv-value {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            word-break: break-word;
+        }
+
+        .release-box, .log-box {
+            padding: 12px;
+            border-radius: 14px;
+            background: rgba(89, 208, 180, 0.08);
+            border: 1px solid rgba(89, 208, 180, 0.18);
+        }
+
+        .release-box.warning {
+            background: rgba(248, 184, 78, 0.08);
+            border-color: rgba(248, 184, 78, 0.2);
+        }
+
+        .release-box.error {
+            background: rgba(255, 123, 123, 0.08);
+            border-color: rgba(255, 123, 123, 0.2);
+        }
+
+        .toolbar {
+            margin-top: 12px;
+        }
+
+        .log-lines {
+            max-height: 640px;
+            overflow: auto;
+            display: grid;
+            gap: 10px;
+        }
+
+        .log-line {
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(3, 10, 16, 0.48);
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .log-line-head {
+            color: #91b6db;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .empty {
+            padding: 24px;
+            border: 1px dashed var(--border);
+            border-radius: 18px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.22);
+            border-top-color: currentColor;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1080px) {
+            .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .logs-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 760px) {
+            .page { padding: 16px; }
+            .topbar { padding: 20px; flex-direction: column; }
+            .summary-grid, .keyvals { grid-template-columns: 1fr; }
+            .title { font-size: 36px; }
+        }
+    </style>
+</head>
+<body>
+    <section id="authView" class="auth-shell">
+        <div class="auth-card">
+            <div class="eyebrow">Secure Access Gate</div>
+            <h1>Tool Manager <span style="color: var(--accent)">Control</span></h1>
+            <p class="lede">
+                This view only unlocks the manager after the server validates the key and creates a secure session.
+                Brute-force attempts are rate-limited and repeated failures trigger lockdown.
+            </p>
+            <form id="loginForm" class="login-form">
+                <input id="tokenInput" class="field" type="password" autocomplete="current-password" placeholder="Enter manager key" />
+                <button id="loginButton" class="btn btn-primary" type="submit">Login To Manager</button>
+            </form>
+            <div id="authStatus" class="status-line"></div>
         </div>
+    </section>
 
-        <script>
-            const state = {
-                token: localStorage.getItem("htm.web.token") || "",
-                tools: [],
-                selectedName: "",
-                selectedDetail: null,
-            };
-
-            const els = {
-                tokenInput: document.getElementById("tokenInput"),
-                saveTokenButton: document.getElementById("saveTokenButton"),
-                refreshButton: document.getElementById("refreshButton"),
-                registerForm: document.getElementById("registerForm"),
-                notice: document.getElementById("notice"),
-                managerVersion: document.getElementById("managerVersion"),
-                toolCount: document.getElementById("toolCount"),
-                selectedVersion: document.getElementById("selectedVersion"),
-                toolGrid: document.getElementById("toolGrid"),
-                detailEmpty: document.getElementById("detailEmpty"),
-                detailPanel: document.getElementById("detailPanel"),
-                detailTitle: document.getElementById("detailTitle"),
-                detailStatus: document.getElementById("detailStatus"),
-                detailVersion: document.getElementById("detailVersion"),
-                detailDownloadURL: document.getElementById("detailDownloadURL"),
-                detailChecksum: document.getElementById("detailChecksum"),
-                detailSlug: document.getElementById("detailSlug"),
-                detailToolDir: document.getElementById("detailToolDir"),
-                detailBinaryPath: document.getElementById("detailBinaryPath"),
-                detailArgs: document.getElementById("detailArgs"),
-                detailVersionCommand: document.getElementById(
-                    "detailVersionCommand",
-                ),
-                updateForm: document.getElementById("updateForm"),
-                manualUpdateButton:
-                    document.getElementById("manualUpdateButton"),
-                reloadDetailsButton: document.getElementById(
-                    "reloadDetailsButton",
-                ),
-                authHint: document.getElementById("authHint"),
-            };
-
-            els.tokenInput.value = state.token;
-
-            /* ── Helpers ── */
-            function csvToList(value) {
-                return value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean);
-            }
-
-            function escapeHTML(v) {
-                return String(v)
-                    .replaceAll("&", "&amp;")
-                    .replaceAll("<", "&lt;")
-                    .replaceAll(">", "&gt;")
-                    .replaceAll('"', "&quot;")
-                    .replaceAll("'", "&#39;");
-            }
-
-            function badgeClass(status) {
-                const s = (status || "").toLowerCase().replace(/[^a-z_]/g, "");
-                const map = {
-                    online: "badge-online",
-                    errored: "badge-errored",
-                    stopped: "badge-stopped",
-                    not_managed: "badge-not_managed",
-                };
-                return "badge " + (map[s] || "badge-unknown");
-            }
-
-            let noticeTimer = null;
-            function showNotice(message, tone) {
-                els.notice.className =
-                    tone === "error" ? "notice-error" : "notice-success";
-                els.notice.textContent = message;
-                els.notice.style.display = "block";
-                clearTimeout(noticeTimer);
-                noticeTimer = setTimeout(() => {
-                    els.notice.style.display = "none";
-                }, 4000);
-            }
-            function clearNotice() {
-                clearTimeout(noticeTimer);
-                els.notice.style.display = "none";
-            }
-
-            /* ── API ── */
-            async function api(path, options = {}) {
-                const headers = new Headers(options.headers || {});
-                if (state.token)
-                    headers.set("Authorization", "Bearer " + state.token);
-                if (options.body && !headers.has("Content-Type"))
-                    headers.set("Content-Type", "application/json");
-                const response = await fetch(path, { ...options, headers });
-                let payload = null;
-                try {
-                    payload = await response.json();
-                } catch (_) {}
-                if (!response.ok)
-                    throw new Error(payload?.error || "Request failed");
-                return payload;
-            }
-
-            /* ── Load version ── */
-            async function loadManagerVersion() {
-                try {
-                    const payload = await api("/version");
-                    els.managerVersion.textContent =
-                        payload.version || "unknown";
-                } catch (_) {
-                    els.managerVersion.textContent = "n/a";
-                }
-            }
-
-            /* ── Render tools ── */
-            function renderTools() {
-                els.toolCount.textContent = String(state.tools.length);
-
-                if (!state.tools.length) {
-                    els.toolGrid.innerHTML =
-                        '<div class="tools-empty">No tools loaded.<br>Connect with a token and refresh.</div>';
-                    return;
-                }
-
-                els.toolGrid.innerHTML = state.tools
-                    .map((tool) => {
-                        const active =
-                            tool.name === state.selectedName ? "active" : "";
-                        const badge = `<span class="${badgeClass(tool.pm2_status)}">${escapeHTML(tool.pm2_status || "unknown")}</span>`;
-                        return `
-          <button data-tool-name="${escapeHTML(tool.name)}" class="tool-card ${active}">
-            <div class="tool-card-top">
-              <div>
-                <div class="tool-card-name">${escapeHTML(tool.name)}</div>
-                <div class="tool-card-ver">${escapeHTML(tool.version || "unknown")}</div>
-              </div>
-              ${badge}
+    <main id="appView" class="page hidden">
+        <section class="topbar">
+            <div>
+                <div class="eyebrow">Hubfly Tool Manager</div>
+                <h1 class="title">Operate <span>tools</span>, inspect <span>logs</span>, control <span>updates</span>.</h1>
+                <p class="lede">Batch updates, release-aware suggestions, secure actions, and searchable runtime logs from one interface.</p>
             </div>
-            <div class="tool-card-actions">
-              <button data-action="start"   data-tool-name="${escapeHTML(tool.name)}" class="tool-action">Start</button>
-              <button data-action="restart" data-tool-name="${escapeHTML(tool.name)}" class="tool-action">Restart</button>
-              <button data-action="update"  data-tool-name="${escapeHTML(tool.name)}" class="tool-action update-btn">Update</button>
+            <div class="topbar-actions">
+                <button class="btn btn-secondary" id="refreshButton">Refresh</button>
+                <button class="btn btn-secondary" id="updateAllButton">Update All Tools</button>
+                <button class="btn btn-secondary" id="selfUpdateButton">Update HTM</button>
+                <button class="btn btn-danger" id="logoutButton">Logout</button>
             </div>
-          </button>`;
-                    })
-                    .join("");
+        </section>
 
-                document.querySelectorAll(".tool-card").forEach((node) => {
-                    node.addEventListener("click", (e) => {
-                        if (e.target.closest(".tool-action")) return;
-                        selectTool(node.dataset.toolName);
-                    });
-                });
+        <section class="summary-grid" id="summaryGrid"></section>
 
-                document.querySelectorAll(".tool-action").forEach((node) => {
-                    node.addEventListener("click", async (e) => {
-                        e.stopPropagation();
-                        const name = node.dataset.toolName;
-                        const action = node.dataset.action;
-                        try {
-                            clearNotice();
-                            await api(
-                                "/tools/" +
-                                    encodeURIComponent(name) +
-                                    "/" +
-                                    action,
-                                { method: "POST", body: JSON.stringify({}) },
-                            );
-                            showNotice(
-                                action + " accepted for " + name,
-                                "success",
-                            );
-                            await refreshAll(name);
-                        } catch (err) {
-                            showNotice(err.message, "error");
-                        }
-                    });
-                });
+        <section class="panel">
+            <div class="section-head">
+                <div>
+                    <div class="eyebrow">Tool Fleet</div>
+                    <h2>Registered Tools</h2>
+                </div>
+                <div id="fleetStatus" class="mono">Idle</div>
+            </div>
+            <div id="toolGrid" class="tool-grid"></div>
+        </section>
+
+        <section class="logs-grid">
+            <aside class="panel">
+                <div class="section-head">
+                    <div>
+                        <div class="eyebrow">Logs Workbench</div>
+                        <h2>Search And Clean Logs</h2>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <select id="logToolFilter" class="select">
+                        <option value="">All tools</option>
+                    </select>
+                    <select id="logFileFilter" class="select">
+                        <option value="">All log files</option>
+                        <option value="boot.log">boot.log</option>
+                        <option value="stdout.log">stdout.log</option>
+                        <option value="stderr.log">stderr.log</option>
+                    </select>
+                    <input id="logQuery" class="search" type="text" placeholder="Search logs, errors, startup lines, versions" />
+                    <input id="logLimit" class="field" type="number" min="10" max="1000" value="150" />
+                    <button class="btn btn-primary" id="searchLogsButton">Search Logs</button>
+                    <button class="btn btn-secondary" id="refreshLogsButton">Refresh Logs</button>
+                    <button class="btn btn-danger" id="clearLogsButton">Clear Selected Logs</button>
+                </div>
+                <div id="logStatus" class="status-line"></div>
+            </aside>
+
+            <section class="panel">
+                <div class="section-head">
+                    <div>
+                        <div class="eyebrow">Query Results</div>
+                        <h2>Live Log Output</h2>
+                    </div>
+                    <div id="logCount" class="mono">0 rows</div>
+                </div>
+                <div id="logResults" class="log-lines"></div>
+            </section>
+        </section>
+    </main>
+
+    <script>
+        const state = {
+            csrfToken: "",
+            tools: [],
+            lastLogQuery: { tool: "", file: "", q: "", limit: 150 }
+        };
+
+        const authView = document.getElementById("authView");
+        const appView = document.getElementById("appView");
+        const authStatus = document.getElementById("authStatus");
+        const fleetStatus = document.getElementById("fleetStatus");
+        const summaryGrid = document.getElementById("summaryGrid");
+        const toolGrid = document.getElementById("toolGrid");
+        const logResults = document.getElementById("logResults");
+        const logStatus = document.getElementById("logStatus");
+        const logCount = document.getElementById("logCount");
+        const logToolFilter = document.getElementById("logToolFilter");
+
+        function setStatus(node, text, kind = "") {
+            node.className = `status-line ${kind}`.trim();
+            node.textContent = text || "";
+        }
+
+        function formatTime(value) {
+            if (!value) return "n/a";
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return "n/a";
+            return date.toLocaleString();
+        }
+
+        function formatBytes(value) {
+            const bytes = Number(value || 0);
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+            return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const init = { credentials: "same-origin", ...options };
+            init.headers = { ...(options.headers || {}) };
+            if (state.csrfToken && init.method && init.method !== "GET") {
+                init.headers["X-CSRF-Token"] = state.csrfToken;
+            }
+            if (init.body && !init.headers["Content-Type"]) {
+                init.headers["Content-Type"] = "application/json";
+            }
+            const response = await fetch(path, init);
+            const text = await response.text();
+            const payload = text ? JSON.parse(text) : {};
+            if (!response.ok) {
+                throw new Error(payload.error || `${response.status} ${response.statusText}`);
+            }
+            return payload;
+        }
+
+        function authMode(authenticated) {
+            authView.classList.toggle("hidden", authenticated);
+            appView.classList.toggle("hidden", !authenticated);
+        }
+
+        function toolStatusClass(status) {
+            const value = (status || "").toLowerCase();
+            if (value.includes("online")) return "online";
+            if (value.includes("error")) return "errored";
+            if (value.includes("stop")) return "stopped";
+            return "";
+        }
+
+        function renderSummary() {
+            const tools = state.tools;
+            const online = tools.filter((tool) => (tool.pm2_status || "").toLowerCase() === "online").length;
+            const needsUpdate = tools.filter((tool) => tool.release && tool.release.update_available).length;
+            const logBytes = tools.reduce((sum, tool) => sum + Number(tool.logs?.total_bytes || 0), 0);
+            const stats = [
+                { label: "Tools", value: String(tools.length), note: "Registered in the manager." },
+                { label: "Online", value: String(online), note: "Currently healthy and running." },
+                { label: "Release Hints", value: String(needsUpdate), note: "GitHub release suggestions available." },
+                { label: "Log Volume", value: formatBytes(logBytes), note: "Current retained runtime logs." }
+            ];
+            summaryGrid.innerHTML = stats.map((stat) => `
+                <article class="panel stat">
+                    <div class="mono">${stat.label}</div>
+                    <div class="stat-value">${stat.value}</div>
+                    <div class="stat-sub">${stat.note}</div>
+                </article>
+            `).join("");
+        }
+
+        function renderTools() {
+            if (!state.tools.length) {
+                toolGrid.innerHTML = `<div class="empty">No tools registered yet.</div>`;
+                return;
             }
 
-            /* ── Render detail ── */
-            function renderDetail() {
-                const d = state.selectedDetail;
-                if (!d) {
-                    els.detailEmpty.style.display = "flex";
-                    els.detailPanel.style.display = "none";
-                    els.detailTitle.textContent = "Tool Details";
-                    els.selectedVersion.textContent = "None";
-                    return;
+            toolGrid.innerHTML = state.tools.map((tool) => {
+                const release = tool.release || {};
+                const releaseClass = release.error ? "error" : release.update_available ? "warning" : "";
+                const safeName = escapeHTML(tool.name || "");
+                const safeSlug = escapeHTML(tool.slug || "tool");
+                const safeStatus = escapeHTML(tool.pm2_status || "unknown");
+                const safeVersion = escapeHTML(tool.version || "unknown");
+                const safeUpdated = escapeHTML(formatTime(tool.updated_at));
+                const safeDownloadURL = escapeHTML(tool.download_url || "n/a");
+                const safeBinaryPath = escapeHTML(tool.binary_path || "n/a");
+                const safeBootLog = escapeHTML(tool.logs?.boot_log_path || "n/a");
+                const safeLastWrite = escapeHTML(formatTime(tool.logs?.last_write_at));
+                const safeRepo = escapeHTML(release.repository || "n/a");
+                const safeCurrentTag = escapeHTML(release.current_tag || "n/a");
+                const safeLatestTag = escapeHTML(release.latest_tag || "n/a");
+                const safeReleaseText = escapeHTML(release.error || release.reason || (release.update_available ? `Suggested asset: ${release.latest_asset || "review latest release"}` : "Configured release looks current."));
+                const safeSuggestedURL = escapeHTML(release.suggested_download_url || "");
+                return `
+                    <article class="panel tool-card">
+                        <div class="tool-meta">
+                            <div>
+                                <div class="mono">${safeSlug}</div>
+                                <h3 class="tool-name">${safeName}</h3>
+                            </div>
+                            <div class="pill ${toolStatusClass(tool.pm2_status)}">${safeStatus}</div>
+                        </div>
+
+                        <div class="pill-row">
+                            <span class="pill">Version ${safeVersion}</span>
+                            <span class="pill">Updated ${safeUpdated}</span>
+                            <span class="pill">Logs ${formatBytes(tool.logs?.total_bytes || 0)}</span>
+                        </div>
+
+                        <div class="mini-actions">
+                            <button class="btn btn-secondary btn-small" data-action="start" data-tool="${safeName}">Start</button>
+                            <button class="btn btn-secondary btn-small" data-action="stop" data-tool="${safeName}">Stop</button>
+                            <button class="btn btn-secondary btn-small" data-action="restart" data-tool="${safeName}">Restart</button>
+                            <button class="btn btn-primary btn-small" data-action="update" data-tool="${safeName}">Update</button>
+                            <button class="btn btn-secondary btn-small" data-action="search-logs" data-tool="${safeName}">Open Logs</button>
+                            <button class="btn btn-danger btn-small" data-action="clear-tool-logs" data-tool="${safeName}">Clean Logs</button>
+                        </div>
+
+                        <div class="keyvals">
+                            <div class="kv">
+                                <div class="kv-label">Download URL</div>
+                                <div class="kv-value">${safeDownloadURL}</div>
+                            </div>
+                            <div class="kv">
+                                <div class="kv-label">Binary Path</div>
+                                <div class="kv-value">${safeBinaryPath}</div>
+                            </div>
+                            <div class="kv">
+                                <div class="kv-label">Boot Log</div>
+                                <div class="kv-value">${safeBootLog}</div>
+                            </div>
+                            <div class="kv">
+                                <div class="kv-label">Last Log Write</div>
+                                <div class="kv-value">${safeLastWrite}</div>
+                            </div>
+                        </div>
+
+                        <div class="release-box ${releaseClass}">
+                            <strong>Release Suggestion</strong>
+                            <div style="margin-top: 6px; color: #d7e5f4;">
+                                ${release.supported ? `Repo ${safeRepo} | current ${safeCurrentTag} | latest ${safeLatestTag}` : escapeHTML(release.reason || "No GitHub release pattern detected.")}
+                            </div>
+                            <div style="margin-top: 6px; color: #bdd0e7;">
+                                ${safeReleaseText}
+                            </div>
+                            ${release.suggested_download_url ? `<div style="margin-top: 6px;" class="mono">${safeSuggestedURL}</div>` : ""}
+                        </div>
+                    </article>
+                `;
+            }).join("");
+        }
+
+        function renderLogToolFilter() {
+            const current = logToolFilter.value;
+            logToolFilter.innerHTML = `<option value="">All tools</option>` + state.tools.map((tool) => `<option value="${escapeHTML(tool.name)}">${escapeHTML(tool.name)}</option>`).join("");
+            if ([...logToolFilter.options].some((option) => option.value === current)) {
+                logToolFilter.value = current;
+            }
+        }
+
+        function renderLogs(rows) {
+            logCount.textContent = `${rows.length} rows`;
+            if (!rows.length) {
+                logResults.innerHTML = `<div class="empty">No matching log entries for the current query.</div>`;
+                return;
+            }
+            logResults.innerHTML = rows.map((row) => `
+                <article class="log-line">
+                    <div class="log-line-head">
+                        <span>${row.tool} / ${row.file} / line ${row.line_number}</span>
+                        <span>${formatTime(row.timestamp)}</span>
+                    </div>
+                    <div>${escapeHTML(row.text)}</div>
+                </article>
+            `).join("");
+        }
+
+        function escapeHTML(value) {
+            return String(value || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;");
+        }
+
+        async function fetchReleaseSuggestions() {
+            await Promise.all(state.tools.map(async (tool) => {
+                try {
+                    const payload = await apiFetch(`/tools/release-suggestions/${encodeURIComponent(tool.name)}`);
+                    tool.release = payload.release || {};
+                } catch (error) {
+                    tool.release = { error: error.message };
                 }
-                els.detailEmpty.style.display = "none";
-                els.detailPanel.style.display = "flex";
-                els.detailTitle.textContent = d.name;
-                els.selectedVersion.textContent = d.version || "unknown";
+            }));
+        }
 
-                const set = (id, val, fallback = "n/a") => {
-                    const el = document.getElementById(id);
-                    el.textContent = val || fallback;
-                    el.classList.toggle("muted", !val);
-                };
+        async function loadTools() {
+            fleetStatus.innerHTML = `<span class="spinner"></span> Loading fleet`;
+            const payload = await apiFetch("/tools");
+            state.tools = (payload.tools || []).slice();
+            await fetchReleaseSuggestions();
+            renderSummary();
+            renderTools();
+            renderLogToolFilter();
+            fleetStatus.textContent = `Last refresh ${new Date().toLocaleTimeString()}`;
+        }
 
-                set("detailStatus", d.pm2_status);
-                set("detailVersion", d.version);
-                set("detailDownloadURL", d.download_url);
-                set("detailChecksum", d.checksum, "not set");
-                set("detailSlug", d.slug);
-                set("detailToolDir", d.tool_dir);
-                set("detailBinaryPath", d.binary_path);
-                set("detailArgs", (d.args || []).join(", "), "none");
-                set(
-                    "detailVersionCommand",
-                    (d.version_command || []).join(", "),
-                    "none",
-                );
-            }
-
-            /* ── Data loading ── */
-            async function loadTools() {
-                const payload = await api("/tools");
-                state.tools = payload.tools || [];
-                renderTools();
-            }
-
-            async function loadToolDetail(name) {
-                const payload = await api("/tools/" + encodeURIComponent(name));
-                state.selectedDetail = payload;
-                renderDetail();
-            }
-
-            async function selectTool(name) {
-                state.selectedName = name;
-                renderTools();
-                await loadToolDetail(name);
-            }
-
-            async function refreshAll(preferredName) {
+        async function runAction(label, action) {
+            fleetStatus.innerHTML = `<span class="spinner"></span> ${label}`;
+            try {
+                await action();
                 await loadTools();
-                const nextName =
-                    preferredName || state.selectedName || state.tools[0]?.name;
-                if (nextName) {
-                    state.selectedName = nextName;
-                    await loadToolDetail(nextName);
-                    renderTools();
-                } else {
-                    state.selectedDetail = null;
-                    renderDetail();
-                }
+                setStatus(logStatus, "", "");
+            } catch (error) {
+                fleetStatus.textContent = "Action failed";
+                setStatus(logStatus, error.message, "error");
             }
+        }
 
-            /* ── Events ── */
-            els.saveTokenButton.addEventListener("click", async () => {
-                state.token = els.tokenInput.value.trim();
-                localStorage.setItem("htm.web.token", state.token);
-                els.authHint.textContent = state.token
-                    ? "Token saved. Refreshing tool state…"
-                    : "Token cleared. Protected calls will fail without a token.";
-                try {
-                    clearNotice();
-                    if (state.token) {
-                        await refreshAll(state.selectedName);
-                        showNotice("Connected successfully", "success");
-                    } else {
-                        state.tools = [];
-                        state.selectedDetail = null;
-                        renderTools();
-                        renderDetail();
-                    }
-                } catch (err) {
-                    showNotice(err.message, "error");
-                }
+        async function searchLogs() {
+            const query = {
+                tool: document.getElementById("logToolFilter").value,
+                file: document.getElementById("logFileFilter").value,
+                q: document.getElementById("logQuery").value.trim(),
+                limit: Number(document.getElementById("logLimit").value || 150)
+            };
+            state.lastLogQuery = query;
+            setStatus(logStatus, "Searching logs...");
+            try {
+                const params = new URLSearchParams();
+                if (query.tool) params.set("tool", query.tool);
+                if (query.file) params.set("file", query.file);
+                if (query.q) params.set("q", query.q);
+                params.set("limit", String(query.limit));
+                const payload = await apiFetch(`/logs?${params.toString()}`);
+                renderLogs(payload.logs || []);
+                setStatus(logStatus, `Loaded ${payload.logs?.length || 0} rows.`, "ok");
+            } catch (error) {
+                renderLogs([]);
+                setStatus(logStatus, error.message, "error");
+            }
+        }
+
+        async function clearLogs() {
+            const tool = document.getElementById("logToolFilter").value;
+            const file = document.getElementById("logFileFilter").value;
+            if (!window.confirm(`Clear ${file || "all"} logs${tool ? ` for ${tool}` : " for all tools"}?`)) return;
+            await apiFetch("/logs/cleanup", {
+                method: "POST",
+                body: JSON.stringify({ tool, file })
             });
+            await searchLogs();
+            await loadTools();
+        }
 
-            els.refreshButton.addEventListener("click", async () => {
-                try {
-                    clearNotice();
-                    await refreshAll(state.selectedName);
-                } catch (err) {
-                    showNotice(err.message, "error");
+        async function initialize() {
+            try {
+                const auth = await apiFetch("/auth/status");
+                state.csrfToken = auth.csrf_token || "";
+                authMode(Boolean(auth.authenticated));
+                if (auth.authenticated) {
+                    await loadTools();
+                    await searchLogs();
+                } else if (!auth.token_ready) {
+                    setStatus(authStatus, "Server token is not initialized yet. Run `htm init` locally first.", "error");
+                } else if (auth.lockdown?.locked) {
+                    setStatus(authStatus, "Manager is in lockdown. Run `htm unlock` locally.", "error");
                 }
-            });
+            } catch (error) {
+                setStatus(authStatus, error.message, "error");
+            }
+        }
 
-            els.reloadDetailsButton.addEventListener("click", async () => {
-                if (!state.selectedName) return;
-                try {
-                    clearNotice();
-                    await loadToolDetail(state.selectedName);
-                    showNotice("Tool details refreshed", "success");
-                } catch (err) {
-                    showNotice(err.message, "error");
-                }
-            });
+        document.getElementById("loginForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const button = document.getElementById("loginButton");
+            button.disabled = true;
+            setStatus(authStatus, "Validating key...");
+            try {
+                const payload = await apiFetch("/auth/login", {
+                    method: "POST",
+                    body: JSON.stringify({ token: document.getElementById("tokenInput").value })
+                });
+                state.csrfToken = payload.csrf_token || "";
+                document.getElementById("tokenInput").value = "";
+                authMode(true);
+                await loadTools();
+                await searchLogs();
+            } catch (error) {
+                setStatus(authStatus, error.message, "error");
+            } finally {
+                button.disabled = false;
+            }
+        });
 
-            els.manualUpdateButton.addEventListener("click", async () => {
-                if (!state.selectedName) {
-                    showNotice("Select a tool first", "error");
-                    return;
-                }
-                try {
-                    clearNotice();
-                    await api(
-                        "/tools/" +
-                            encodeURIComponent(state.selectedName) +
-                            "/update",
-                        { method: "POST", body: JSON.stringify({}) },
-                    );
-                    showNotice(
-                        "Update started for " + state.selectedName,
-                        "success",
-                    );
-                    await refreshAll(state.selectedName);
-                } catch (err) {
-                    showNotice(err.message, "error");
-                }
-            });
+        document.getElementById("refreshButton").addEventListener("click", () => runAction("Refreshing tools", loadTools));
+        document.getElementById("updateAllButton").addEventListener("click", () => runAction("Updating all tools", async () => {
+            const payload = await apiFetch("/tools/update-all", { method: "POST", body: JSON.stringify({}) });
+            const failed = (payload.results || []).filter((item) => !item.ok);
+            if (failed.length) {
+                throw new Error(`Some updates failed: ${failed.map((item) => `${item.tool}: ${item.message || "failed"}`).join(" | ")}`);
+            }
+        }));
+        document.getElementById("selfUpdateButton").addEventListener("click", () => runAction("Requesting HTM self-update", async () => {
+            await apiFetch("/self/update", { method: "POST", body: JSON.stringify({}) });
+        }));
+        document.getElementById("logoutButton").addEventListener("click", async () => {
+            await apiFetch("/auth/logout", { method: "POST", body: JSON.stringify({}) });
+            state.csrfToken = "";
+            authMode(false);
+            setStatus(authStatus, "Logged out.", "ok");
+        });
+        document.getElementById("searchLogsButton").addEventListener("click", searchLogs);
+        document.getElementById("refreshLogsButton").addEventListener("click", searchLogs);
+        document.getElementById("clearLogsButton").addEventListener("click", () => runAction("Cleaning logs", clearLogs));
 
-            els.updateForm.addEventListener("submit", async (e) => {
-                e.preventDefault();
-                if (!state.selectedName) {
-                    showNotice("Select a tool first", "error");
-                    return;
-                }
-                const fd = new FormData(els.updateForm);
-                const body = {};
-                const url = String(fd.get("download_url") || "").trim();
-                const cksum = String(fd.get("checksum") || "");
-                const verCmd = String(fd.get("version_command") || "").trim();
-                const args = String(fd.get("args") || "").trim();
-                if (url) body.download_url = url;
-                if (cksum !== "") body.checksum = cksum.trim();
-                if (verCmd) body.version_command = csvToList(verCmd);
-                if (args) body.args = csvToList(args);
-                if (!Object.keys(body).length) {
-                    showNotice("Provide at least one field to update", "error");
-                    return;
-                }
-                try {
-                    clearNotice();
-                    await api(
-                        "/tools/" +
-                            encodeURIComponent(state.selectedName) +
-                            "/configure-update",
-                        { method: "POST", body: JSON.stringify(body) },
-                    );
-                    els.updateForm.reset();
-                    showNotice("Tool updated successfully", "success");
-                    await refreshAll(state.selectedName);
-                } catch (err) {
-                    showNotice(err.message, "error");
-                }
-            });
-
-            els.registerForm.addEventListener("submit", async (e) => {
-                e.preventDefault();
-                const fd = new FormData(els.registerForm);
-                const body = {
-                    name: String(fd.get("name") || "").trim(),
-                    download_url: String(fd.get("download_url") || "").trim(),
-                };
-                const cksum = String(fd.get("checksum") || "");
-                const verCmd = String(fd.get("version_command") || "").trim();
-                const args = String(fd.get("args") || "").trim();
-                if (cksum.trim()) body.checksum = cksum.trim();
-                if (verCmd) body.version_command = csvToList(verCmd);
-                if (args) body.args = csvToList(args);
-                try {
-                    clearNotice();
-                    await api("/tools/register", {
+        toolGrid.addEventListener("click", async (event) => {
+            const button = event.target.closest("button[data-action]");
+            if (!button) return;
+            const tool = button.dataset.tool;
+            const action = button.dataset.action;
+            if (!tool || !action) return;
+            if (action === "search-logs") {
+                document.getElementById("logToolFilter").value = tool;
+                await searchLogs();
+                return;
+            }
+            if (action === "clear-tool-logs") {
+                if (!window.confirm(`Clear all logs for ${tool}?`)) return;
+                await runAction(`Cleaning logs for ${tool}`, async () => {
+                    await apiFetch(`/tools/${encodeURIComponent(tool)}/logs/cleanup`, {
                         method: "POST",
-                        body: JSON.stringify(body),
+                        body: JSON.stringify({})
                     });
-                    els.registerForm.reset();
-                    showNotice("Tool registered successfully", "success");
-                    await refreshAll(body.name);
-                } catch (err) {
-                    showNotice(err.message, "error");
-                }
-            });
-
-            /* ── Init ── */
-            loadManagerVersion();
-            if (state.token) {
-                refreshAll().catch((err) => showNotice(err.message, "error"));
-            } else {
-                renderTools();
-                renderDetail();
+                    await searchLogs();
+                });
+                return;
             }
-        </script>
-    </body>
+            await runAction(`${action} ${tool}`, async () => {
+                await apiFetch(`/tools/${encodeURIComponent(tool)}/${action}`, {
+                    method: "POST",
+                    body: JSON.stringify({})
+                });
+            });
+        });
+
+        initialize();
+    </script>
+</body>
 </html>
