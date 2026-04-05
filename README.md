@@ -397,6 +397,72 @@ pm2 status
 
 If PM2 is empty but `htm list` still shows tools, restart the manager once and it will reconcile registered tools back into PM2 on boot.
 
+### API-only import with curl
+
+If you only want to recreate the registered tool definitions on another server, you can import them over HTTP.
+
+This copies:
+- `name`
+- `download_url`
+- `checksum`
+- `args`
+- `version_command`
+
+This does not copy:
+- existing downloaded binaries
+- tool-local files under `/hubfly-tool-manager/tools`
+- backups
+- logs
+- version history
+
+You need `jq` for this.
+
+Source and target example:
+
+```bash
+SRC_URL="http://10.0.0.10:10000"
+SRC_TOKEN="SOURCE_TOKEN"
+DST_URL="http://10.0.0.20:10000"
+DST_TOKEN="TARGET_TOKEN"
+
+curl -fsSL "$SRC_URL/tools" \
+  -H "Authorization: Bearer $SRC_TOKEN" \
+| jq -r '.tools[].name' \
+| while IFS= read -r name; do
+    encoded_name="$(printf '%s' "$name" | jq -sRr @uri)"
+    payload="$(curl -fsSL "$SRC_URL/tools/$encoded_name" \
+      -H "Authorization: Bearer $SRC_TOKEN" \
+      | jq '{
+          name,
+          download_url,
+          checksum,
+          args,
+          version_command
+        }')"
+
+    curl -fsSL -X POST "$DST_URL/tools/register" \
+      -H "Authorization: Bearer $DST_TOKEN" \
+      -H 'Content-Type: application/json' \
+      -d "$payload"
+    echo
+  done
+```
+
+After importing the definitions, start or provision them on the target:
+
+```bash
+curl -fsSL "$DST_URL/tools" \
+  -H "Authorization: Bearer $DST_TOKEN" \
+| jq -r '.tools[].name' \
+| while IFS= read -r name; do
+    curl -fsSL -X POST "$DST_URL/tools/$(printf '%s' "$name" | jq -sRr @uri)/provision" \
+      -H "Authorization: Bearer $DST_TOKEN"
+    echo
+  done
+```
+
+If you want the exact runtime state, files, backups, and existing binaries too, use the tar archive method above instead of the API-only import.
+
 ## GitHub Release Workflow
 
 The repository includes [release-linux.yml](/home/bonheur/Desktop/Projects/hubfly-tools/hubfly-tool-manager/.github/workflows/release-linux.yml), which on each `v*` tag:

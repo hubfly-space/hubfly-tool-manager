@@ -1104,28 +1104,59 @@ func (m *Manager) materializeBinary(downloadURL, downloadedPath, targetPath stri
 	}
 }
 
-var githubReleaseURLPattern = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/releases/download/([^/]+)/(.+)$`)
+var (
+	githubReleaseTaggedURLPattern = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/releases/download/([^/]+)/(.+)$`)
+	githubReleaseLatestURLPattern = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/releases/latest/download/(.+)$`)
+)
+
+type githubReleaseURL struct {
+	Repository string
+	CurrentTag string
+	Asset      string
+	IsLatest   bool
+}
+
+func parseGitHubReleaseURL(raw string) (githubReleaseURL, bool) {
+	raw = strings.TrimSpace(raw)
+	if matches := githubReleaseLatestURLPattern.FindStringSubmatch(raw); len(matches) == 3 {
+		return githubReleaseURL{
+			Repository: matches[1],
+			CurrentTag: "latest",
+			Asset:      matches[2],
+			IsLatest:   true,
+		}, true
+	}
+	if matches := githubReleaseTaggedURLPattern.FindStringSubmatch(raw); len(matches) == 4 {
+		return githubReleaseURL{
+			Repository: matches[1],
+			CurrentTag: matches[2],
+			Asset:      matches[3],
+			IsLatest:   false,
+		}, true
+	}
+	return githubReleaseURL{}, false
+}
 
 func (m *Manager) suggestReleaseForTool(t model.ToolConfig) *model.ReleaseSuggestion {
-	matches := githubReleaseURLPattern.FindStringSubmatch(strings.TrimSpace(t.DownloadURL))
-	if len(matches) != 4 {
+	parsed, ok := parseGitHubReleaseURL(t.DownloadURL)
+	if !ok {
 		return &model.ReleaseSuggestion{
 			Supported: false,
-			Reason:    "download URL is not a GitHub release asset",
+			Reason:    "download URL is not a supported GitHub release asset",
 		}
 	}
 
-	repo := matches[1]
-	currentTag := matches[2]
-	currentAsset := matches[3]
+	repo := parsed.Repository
+	currentTag := parsed.CurrentTag
+	currentAsset := parsed.Asset
 	latest, err := m.latestRelease(repo)
 	if err != nil {
 		return &model.ReleaseSuggestion{
-			Supported:   true,
-			Repository:  repo,
-			CurrentTag:  currentTag,
+			Supported:    true,
+			Repository:   repo,
+			CurrentTag:   currentTag,
 			CurrentAsset: currentAsset,
-			Error:       err.Error(),
+			Error:        err.Error(),
 		}
 	}
 
@@ -1147,9 +1178,13 @@ func (m *Manager) suggestReleaseForTool(t model.ToolConfig) *model.ReleaseSugges
 		suggestion.LatestAsset = latest.Assets[0].Name
 		suggestion.SuggestedDownloadURL = latest.Assets[0].BrowserDownloadURL
 	}
-	if latest.TagName != currentTag {
+	if parsed.IsLatest {
+		suggestion.Reason = "tool is already tracking the latest GitHub release alias"
+	} else if latest.TagName != currentTag {
 		suggestion.UpdateAvailable = true
 		suggestion.Reason = "latest GitHub release differs from the configured asset tag"
+	} else {
+		suggestion.Reason = "configured asset already matches the latest GitHub release tag"
 	}
 	if suggestion.SuggestedDownloadURL == "" {
 		suggestion.Reason = "latest release does not contain a matching asset; review manually"
