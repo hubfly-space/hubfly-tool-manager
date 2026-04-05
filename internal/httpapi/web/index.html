@@ -784,6 +784,13 @@
                 color: var(--text-2);
             }
 
+            textarea.field {
+                min-height: 86px;
+                padding: 12px 14px;
+                resize: vertical;
+                line-height: 1.5;
+            }
+
             .log-results-panel {
                 background: var(--bg-1);
                 border: 1px solid var(--border);
@@ -1210,7 +1217,9 @@
                     </div>
                     <div>
                         <div class="sidebar-logo-text">Tool Manager</div>
-                        <div class="sidebar-logo-sub">Hubfly HTM</div>
+                        <div class="sidebar-logo-sub" id="sidebarVersionText">
+                            Hubfly HTM · version —
+                        </div>
                     </div>
                 </div>
                 <nav class="sidebar-nav">
@@ -1327,6 +1336,9 @@
                 <header class="topbar">
                     <div class="topbar-left">
                         <div class="page-title" id="topbarTitle">Overview</div>
+                        <div class="breadcrumb" id="topbarVersionText">
+                            HTM version —
+                        </div>
                     </div>
                     <div class="topbar-right">
                         <div class="status-indicator">
@@ -1597,6 +1609,63 @@
             </div>
         </div>
 
+        <div class="modal-overlay" id="modalToolEdit">
+            <div class="modal modal-lg">
+                <div class="modal-header">
+                    <div>
+                        <div class="modal-title" id="editToolName">
+                            Edit Tool
+                        </div>
+                        <div class="modal-subtitle" id="editToolSlug"></div>
+                    </div>
+                    <button class="modal-close" data-close="modalToolEdit">
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <form id="editToolForm">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label" for="editDownloadURL">Download URL</label>
+                            <input id="editDownloadURL" class="field" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editChecksum">Checksum</label>
+                            <input id="editChecksum" class="field" type="text" placeholder="Optional, leave empty to clear" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editArgs">Args</label>
+                            <textarea id="editArgs" class="field" placeholder="One argument per line or comma-separated"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editVersionCommand">Version Command</label>
+                            <textarea id="editVersionCommand" class="field" placeholder="One token per line or comma-separated"></textarea>
+                        </div>
+                        <div class="alert alert-blue">
+                            Saving uses <code>/tools/{name}/configure-update</code> and restarts the tool with the updated config.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-close="modalToolEdit">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="editToolSaveBtn">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Action Progress Modal -->
         <div class="modal-overlay" id="modalProgress">
             <div class="modal">
@@ -1636,8 +1705,10 @@
             const state = {
                 csrfToken: "",
                 tools: [],
+                managerVersion: "",
                 activeView: "overview",
                 lastLogQuery: { tool: "", file: "", q: "", limit: 150 },
+                editingTool: null,
             };
 
             const $ = (id) => document.getElementById(id);
@@ -1661,6 +1732,17 @@
                 if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
                 if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
                 return `${(b / 1073741824).toFixed(1)} GB`;
+            }
+
+            function splitCommandText(value) {
+                return String(value || "")
+                    .split(/\n|,/)
+                    .map((part) => part.trim())
+                    .filter(Boolean);
+            }
+
+            function commandText(value) {
+                return Array.isArray(value) ? value.join("\n") : "";
             }
 
             function toolStatusClass(s) {
@@ -1724,6 +1806,12 @@
                 const el = $("logStatus");
                 el.className = `status-line ${kind}`.trim();
                 el.textContent = text;
+            }
+
+            function renderManagerVersion() {
+                const version = state.managerVersion || "unknown";
+                $("sidebarVersionText").textContent = `Hubfly HTM · version ${version}`;
+                $("topbarVersionText").textContent = `HTM version ${version}`;
             }
 
             // ═══════════════════════════════════════
@@ -1838,9 +1926,22 @@
                 );
             }
 
+            async function loadManagerVersion() {
+                try {
+                    const payload = await apiFetch("/health");
+                    state.managerVersion = payload.version || "unknown";
+                } catch (err) {
+                    state.managerVersion = "unknown";
+                }
+                renderManagerVersion();
+            }
+
             async function loadTools() {
                 setStatus("Loading…", true);
-                const payload = await apiFetch("/tools");
+                const [payload] = await Promise.all([
+                    apiFetch("/tools"),
+                    loadManagerVersion(),
+                ]);
                 state.tools = (payload.tools || []).slice();
                 await fetchReleaseSuggestions();
                 renderAll();
@@ -1954,6 +2055,7 @@
                 <button class="btn btn-secondary btn-sm" data-action="stop"            data-tool="${safeName}">Stop</button>
                 <button class="btn btn-secondary btn-sm" data-action="restart"         data-tool="${safeName}">Restart</button>
                 <button class="btn btn-primary   btn-sm" data-action="update"          data-tool="${safeName}">Update</button>
+                <button class="btn btn-ghost     btn-sm" data-action="edit"            data-tool="${safeName}">Edit</button>
                 <button class="btn btn-ghost     btn-sm" data-action="detail"          data-tool="${safeName}">Details</button>
                 <button class="btn btn-ghost     btn-sm" data-action="search-logs"     data-tool="${safeName}">Logs</button>
                 <button class="btn btn-danger    btn-sm" data-action="clear-tool-logs" data-tool="${safeName}">Clear Logs</button>
@@ -2172,6 +2274,53 @@
                 }
             }
 
+            function openToolEdit(toolName) {
+                const tool = state.tools.find((t) => t.name === toolName);
+                if (!tool) return;
+                state.editingTool = tool.name;
+                $("editToolName").textContent = `Edit — ${tool.name}`;
+                $("editToolSlug").textContent = tool.slug || tool.name;
+                $("editDownloadURL").value = tool.download_url || "";
+                $("editChecksum").value = tool.checksum || "";
+                $("editArgs").value = commandText(tool.args);
+                $("editVersionCommand").value = commandText(tool.version_command);
+                openModal("modalToolEdit");
+            }
+
+            async function saveToolEdit() {
+                const toolName = state.editingTool;
+                if (!toolName) return;
+                const payload = {
+                    download_url: $("editDownloadURL").value.trim(),
+                    checksum: $("editChecksum").value.trim(),
+                    args: splitCommandText($("editArgs").value),
+                    version_command: splitCommandText($("editVersionCommand").value),
+                };
+
+                const saveBtn = $("editToolSaveBtn");
+                saveBtn.disabled = true;
+                closeModal("modalToolEdit");
+                showProgress(`Saving ${toolName}`, "Updating tool configuration and restarting it");
+                try {
+                    await apiFetch(
+                        `/tools/${encodeURIComponent(toolName)}/configure-update`,
+                        {
+                            method: "POST",
+                            body: JSON.stringify(payload),
+                        },
+                    );
+                    hideProgress();
+                    toast("success", "Tool configuration updated", toolName);
+                    await loadTools();
+                } catch (err) {
+                    hideProgress();
+                    toast("error", "Failed to save tool changes", err.message);
+                    openToolEdit(toolName);
+                } finally {
+                    saveBtn.disabled = false;
+                }
+            }
+
             function showToolDetail(toolName) {
                 const tool = state.tools.find((t) => t.name === toolName);
                 if (!tool) return;
@@ -2209,6 +2358,7 @@
                 <button class="btn btn-secondary btn-sm" data-action="stop"        data-tool="${escapeHTML(tool.name)}">Stop</button>
                 <button class="btn btn-secondary btn-sm" data-action="restart"     data-tool="${escapeHTML(tool.name)}">Restart</button>
                 <button class="btn btn-primary   btn-sm" data-action="update"      data-tool="${escapeHTML(tool.name)}">Update</button>
+                <button class="btn btn-ghost     btn-sm" data-action="edit"        data-tool="${escapeHTML(tool.name)}">Edit</button>
                 <button class="btn btn-danger    btn-sm" data-action="clear-tool-logs" data-tool="${escapeHTML(tool.name)}">Clear Logs</button>
             </div>
         `;
@@ -2227,6 +2377,12 @@
 
                 if (action === "detail") {
                     showToolDetail(tool);
+                    return;
+                }
+                if (action === "edit") {
+                    if (document.querySelector("#modalToolDetail.open"))
+                        closeModal("modalToolDetail");
+                    openToolEdit(tool);
                     return;
                 }
                 if (action === "search-logs") {
@@ -2281,6 +2437,10 @@
                 $("searchLogsButton").onclick = searchLogs;
                 $("refreshLogsButton").onclick = searchLogs;
                 $("clearLogsButton").onclick = clearLogs;
+                $("editToolForm").onsubmit = async (e) => {
+                    e.preventDefault();
+                    await saveToolEdit();
+                };
             }
 
             // ═══════════════════════════════════════
