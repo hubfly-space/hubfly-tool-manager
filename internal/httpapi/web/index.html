@@ -689,7 +689,7 @@
         async function fetchReleaseSuggestions() {
             await Promise.all(state.tools.map(async (tool) => {
                 try {
-                    const payload = await apiFetch(`/tools/release-suggestions/${encodeURIComponent(tool.name)}`);
+                    const payload = await apiFetch(`/tools/${encodeURIComponent(tool.name)}/release-suggestion`);
                     tool.release = payload.release || {};
                 } catch (error) {
                     tool.release = { error: error.message };

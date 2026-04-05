@@ -2,7 +2,6 @@ package pm2
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -186,9 +185,27 @@ func (c *Client) jlist() ([]jlistEntry, error) {
 	if res.Stdout == "" {
 		return []jlistEntry{}, nil
 	}
+	payload := extractJSONArray(res.Stdout)
+	if payload == "" {
+		payload = strings.TrimSpace(res.Stdout)
+	}
 	var list []jlistEntry
-	if err := json.Unmarshal([]byte(res.Stdout), &list); err != nil {
-		return nil, errors.New("failed to parse pm2 jlist output")
+	if err := json.Unmarshal([]byte(payload), &list); err != nil {
+		snippet := payload
+		if len(snippet) > 240 {
+			snippet = snippet[:240]
+		}
+		return nil, fmt.Errorf("failed to parse pm2 jlist output: %w; snippet=%q", err, snippet)
 	}
 	return list, nil
+}
+
+func extractJSONArray(value string) string {
+	raw := strings.TrimSpace(value)
+	start := strings.Index(raw, "[")
+	end := strings.LastIndex(raw, "]")
+	if start == -1 || end == -1 || end < start {
+		return ""
+	}
+	return strings.TrimSpace(raw[start : end+1])
 }
