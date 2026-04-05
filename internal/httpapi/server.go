@@ -27,10 +27,16 @@ type Server struct {
 	tokenFile    string
 	lockdownFile string
 	authMu       sync.Mutex
+	sessionsMu   sync.Mutex
+	sessionSecret []byte
+	sessions     map[string]authSession
 }
 
-func New(manager *tool.Manager, logger *log.Logger, tokenFile, lockdownFile string) *Server {
+func New(manager *tool.Manager, logger *log.Logger, tokenFile, lockdownFile, sessionSecretFile string) *Server {
 	s := &Server{manager: manager, logger: logger, mux: http.NewServeMux(), tokenFile: tokenFile, lockdownFile: lockdownFile}
+	if err := s.initSessionSecurity(sessionSecretFile); err != nil {
+		logger.Fatalf("init session security: %v", err)
+	}
 	s.routes()
 	return s
 }
@@ -41,15 +47,22 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /version", s.handleManagerVersion)
+	s.mux.HandleFunc("GET /auth/status", s.handleAuthStatus)
+	s.mux.HandleFunc("POST /auth/login", s.handleLogin)
+	s.mux.HandleFunc("POST /auth/logout", s.handleLogout)
 	s.mux.HandleFunc("GET /web", s.handleWeb)
 	s.mux.HandleFunc("GET /web/", s.handleWeb)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("POST /tools/register", s.handleRegister)
 	s.mux.HandleFunc("GET /tools", s.handleListTools)
+	s.mux.HandleFunc("POST /tools/update-all", s.handleUpdateAll)
+	s.mux.HandleFunc("GET /tools/release-suggestions/{name}", s.handleReleaseSuggestion)
 	s.mux.HandleFunc("GET /tools/{name}", s.handleToolStatus)
 	s.mux.HandleFunc("GET /tools/{name}/history", s.handleHistory)
 	s.mux.HandleFunc("GET /tools/{name}/backups", s.handleBackups)
 	s.mux.HandleFunc("GET /tools/{name}/version", s.handleVersion)
+	s.mux.HandleFunc("GET /tools/{name}/logs", s.handleToolLogs)
+	s.mux.HandleFunc("POST /tools/{name}/logs/cleanup", s.handleToolLogCleanup)
 	s.mux.HandleFunc("POST /tools/{name}/start", s.handleStart)
 	s.mux.HandleFunc("POST /tools/{name}/stop", s.handleStop)
 	s.mux.HandleFunc("POST /tools/{name}/restart", s.handleRestart)
@@ -58,6 +71,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /tools/{name}/configure-update", s.handleConfigureUpdate)
 	s.mux.HandleFunc("POST /tools/{name}/rollback", s.handleRollback)
 	s.mux.HandleFunc("POST /tools/{name}/cleanup", s.handleCleanup)
+	s.mux.HandleFunc("GET /logs", s.handleLogs)
+	s.mux.HandleFunc("POST /logs/cleanup", s.handleLogsCleanup)
 	s.mux.HandleFunc("POST /self/update", s.handleSelfUpdate)
 }
 
@@ -75,7 +90,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && (r.URL.Path == "/version" || r.URL.Path == "/web" || r.URL.Path == "/web/") {
+		if s.isPublicRoute(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -85,39 +100,29 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusInternalServerError, "failed to read lockdown state")
 			return
 		}
-		if state.Locked {
+		if state.Locked || (!state.LockedUntil.IsZero() && time.Now().UTC().Before(state.LockedUntil)) {
 			writeError(w, http.StatusLocked, "service is in lockdown mode; run `htm unlock` locally")
 			return
 		}
 
-		expected, err := s.loadToken()
-		if err != nil {
-			writeError(w, http.StatusServiceUnavailable, "security token not initialized; run `htm init`")
-			return
-		}
-		got := strings.TrimSpace(extractToken(r))
-		if got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
-			// Count failed attempts only when a token is provided but invalid.
-			if got != "" {
-				if st, err := s.recordFailedAttempt(); err == nil && st.Locked {
-					writeError(w, http.StatusLocked, "service entered lockdown mode after repeated invalid token attempts; run `htm unlock` locally")
-					return
-				}
+		if strings.TrimSpace(extractToken(r)) != "" {
+			if s.authorizeBearerToken(w, r) {
+				next.ServeHTTP(w, r)
 			}
-			writeError(w, http.StatusUnauthorized, "invalid or missing security token")
 			return
 		}
-
-		if err := s.clearFailedAttempts(); err != nil {
-			s.logger.Printf("warning: failed to clear failed auth attempts: %v", err)
+		if s.authorizeSession(w, r) {
+			next.ServeHTTP(w, r)
+			return
 		}
-		next.ServeHTTP(w, r)
+		writeError(w, http.StatusUnauthorized, "authentication required")
 	})
 }
 
 type lockdownState struct {
 	Locked         bool      `json:"locked"`
 	FailedAttempts int       `json:"failed_attempts"`
+	LockedUntil    time.Time `json:"locked_until,omitempty"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
@@ -148,6 +153,18 @@ func (s *Server) loadLockdownStateUnlocked() (lockdownState, error) {
 	return st, nil
 }
 
+func (s *Server) currentLockdownState() lockdownState {
+	st, _ := s.loadLockdownState()
+	return st
+}
+
+func (s *Server) isPublicRoute(r *http.Request) bool {
+	if r.Method == http.MethodGet && (r.URL.Path == "/version" || r.URL.Path == "/web" || r.URL.Path == "/web/" || r.URL.Path == "/health" || r.URL.Path == "/auth/status") {
+		return true
+	}
+	return r.Method == http.MethodPost && (r.URL.Path == "/auth/login" || r.URL.Path == "/auth/logout")
+}
+
 func (s *Server) saveLockdownStateUnlocked(st lockdownState) error {
 	if err := os.MkdirAll(filepath.Dir(s.lockdownFile), 0o755); err != nil {
 		return err
@@ -163,7 +180,7 @@ func (s *Server) saveLockdownStateUnlocked(st lockdownState) error {
 	return os.Rename(tmp, s.lockdownFile)
 }
 
-func (s *Server) recordFailedAttempt() (lockdownState, error) {
+func (s *Server) recordFailedAttempt(_ string) (lockdownState, error) {
 	s.authMu.Lock()
 	defer s.authMu.Unlock()
 
@@ -172,14 +189,33 @@ func (s *Server) recordFailedAttempt() (lockdownState, error) {
 		return st, err
 	}
 	st.FailedAttempts++
+	now := time.Now().UTC()
+	if st.FailedAttempts >= 5 {
+		st.LockedUntil = now.Add(lockdownWindow)
+	}
 	if st.FailedAttempts >= 10 {
 		st.Locked = true
 	}
-	st.UpdatedAt = time.Now().UTC()
+	st.UpdatedAt = now
 	if err := s.saveLockdownStateUnlocked(st); err != nil {
 		return st, err
 	}
 	return st, nil
+}
+
+func (s *Server) isTemporarilyBlocked(ip string) (lockdownState, bool) {
+	st, err := s.loadLockdownState()
+	if err != nil {
+		return lockdownState{}, false
+	}
+	if st.Locked {
+		return st, true
+	}
+	_ = ip
+	if !st.LockedUntil.IsZero() && time.Now().UTC().Before(st.LockedUntil) {
+		return st, true
+	}
+	return st, false
 }
 
 func (s *Server) clearFailedAttempts() error {
@@ -193,6 +229,7 @@ func (s *Server) clearFailedAttempts() error {
 		return nil
 	}
 	st.FailedAttempts = 0
+	st.LockedUntil = time.Time{}
 	st.UpdatedAt = time.Now().UTC()
 	return s.saveLockdownStateUnlocked(st)
 }
@@ -223,6 +260,54 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
+func (s *Server) authorizeBearerToken(w http.ResponseWriter, r *http.Request) bool {
+	got := strings.TrimSpace(extractToken(r))
+	if got == "" {
+		return false
+	}
+	expected, err := s.loadToken()
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "security token not initialized; run `htm init`")
+		return false
+	}
+	if subtleCompare(got, expected) {
+		if err := s.clearFailedAttempts(); err != nil {
+			s.logger.Printf("warning: failed to clear failed auth attempts: %v", err)
+		}
+		return true
+	}
+	if st, err := s.recordFailedAttempt(remoteIP(r)); err == nil && st.Locked {
+		writeError(w, http.StatusLocked, "service entered lockdown mode after repeated invalid token attempts; run `htm unlock` locally")
+		return false
+	}
+	writeError(w, http.StatusUnauthorized, "invalid security token")
+	return false
+}
+
+func (s *Server) authorizeSession(w http.ResponseWriter, r *http.Request) bool {
+	_, sess := s.sessionFromRequest(r)
+	if sess == nil {
+		return false
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		if subtleCompare(strings.TrimSpace(r.Header.Get("X-CSRF-Token")), sess.CSRFToken) == false {
+			writeError(w, http.StatusForbidden, "missing or invalid csrf token")
+			return false
+		}
+	}
+	return true
+}
+
+func subtleCompare(a, b string) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req model.RegisterToolRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -248,6 +333,21 @@ func (s *Server) handleListTools(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"tools": s.manager.ListStatus()})
 }
 
+func (s *Server) handleUpdateAll(w http.ResponseWriter, _ *http.Request) {
+	results := s.manager.UpdateAll()
+	ok := true
+	for _, result := range results {
+		if !result.OK {
+			ok = false
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      ok,
+		"results": results,
+	})
+}
+
 func (s *Server) handleToolStatus(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	cfg, err := s.manager.GetTool(name)
@@ -260,13 +360,14 @@ func (s *Server) handleToolStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status := s.manager.GetStatus(name)
+	status.Release = s.manager.SuggestRelease(name)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":            status.Name,
+		"slug":            cfg.Slug,
 		"pm2_status":      status.PM2Status,
 		"version":         status.Version,
 		"updated_at":      status.UpdatedAt,
 		"error":           status.Error,
-		"slug":            cfg.Slug,
 		"tool_dir":        cfg.ToolDir,
 		"binary_path":     cfg.BinaryPath,
 		"download_url":    cfg.DownloadURL,
@@ -275,6 +376,16 @@ func (s *Server) handleToolStatus(w http.ResponseWriter, r *http.Request) {
 		"version_command": cfg.VersionCommand,
 		"created_at":      cfg.CreatedAt,
 		"db_updated_at":   cfg.UpdatedAt,
+		"logs":            status.Logs,
+		"release":         status.Release,
+	})
+}
+
+func (s *Server) handleReleaseSuggestion(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tool":    name,
+		"release": s.manager.SuggestRelease(name),
 	})
 }
 
@@ -328,6 +439,96 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"name": status.Name, "version": status.Version})
+}
+
+func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
+	limit := 200
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		limit = n
+	}
+	entries, err := s.manager.SearchLogs(
+		r.URL.Query().Get("tool"),
+		r.URL.Query().Get("file"),
+		r.URL.Query().Get("q"),
+		limit,
+	)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"logs": entries})
+}
+
+func (s *Server) handleToolLogs(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := 200
+	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		limit = n
+	}
+	entries, err := s.manager.SearchLogs(r.PathValue("name"), q.Get("file"), q.Get("q"), limit)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"logs": entries})
+}
+
+type cleanupLogsRequest struct {
+	File string `json:"file"`
+	Tool string `json:"tool"`
+}
+
+func (s *Server) handleLogsCleanup(w http.ResponseWriter, r *http.Request) {
+	var req cleanupLogsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if err := s.manager.CleanupLogs(req.Tool, req.File); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": req.Tool, "file": req.File})
+}
+
+func (s *Server) handleToolLogCleanup(w http.ResponseWriter, r *http.Request) {
+	var req cleanupLogsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	name := r.PathValue("name")
+	if err := s.manager.CleanupLogs(name, req.File); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "unknown tool") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tool": name, "file": req.File})
 }
 
 func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {

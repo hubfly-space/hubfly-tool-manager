@@ -1,5 +1,9 @@
-data
-configs
-backups
-bin
-tools
+/data
+/configs
+/backups
+/bin
+/tools
+/logs
+/.token
+/.lockdown.json
+/.session-secret

@@ -19,8 +19,10 @@ func main() {
 	dataDir := flag.String("data-dir", envOrDefault("HTM_DATA_DIR", "/hubfly-tool-manager/data"), "directory for sqlite database")
 	backupsDir := flag.String("backups-dir", envOrDefault("HTM_BACKUPS_DIR", "/hubfly-tool-manager/backups"), "directory for backups")
 	toolsDir := flag.String("tools-dir", envOrDefault("HTM_TOOLS_DIR", "/hubfly-tool-manager/tools"), "directory holding per-tool folders")
+	logsDir := flag.String("logs-dir", envOrDefault("HTM_LOGS_DIR", "/hubfly-tool-manager/logs"), "directory holding tool logs")
 	tokenFile := flag.String("token-file", envOrDefault("HTM_TOKEN_FILE", "/hubfly-tool-manager/.token"), "security token file path")
 	lockdownFile := flag.String("lockdown-file", envOrDefault("HTM_LOCKDOWN_FILE", "/hubfly-tool-manager/.lockdown.json"), "lockdown state file path")
+	sessionSecretFile := flag.String("session-secret-file", envOrDefault("HTM_SESSION_SECRET_FILE", "/hubfly-tool-manager/.session-secret"), "session signing secret file path")
 	pm2Bin := flag.String("pm2-bin", envOrDefault("HTM_PM2_BIN", "pm2"), "pm2 binary")
 	gitBin := flag.String("git-bin", envOrDefault("HTM_GIT_BIN", "git"), "git binary")
 	timeoutSecs := flag.Int("command-timeout-secs", envIntOrDefault("HTM_COMMAND_TIMEOUT_SECS", 90), "command timeout in seconds")
@@ -34,15 +36,17 @@ func main() {
 		DataDir:            absPathOrDefault(*dataDir, "/hubfly-tool-manager/data"),
 		BackupsDir:         absPathOrDefault(*backupsDir, "/hubfly-tool-manager/backups"),
 		ToolsDir:           absPathOrDefault(*toolsDir, "/hubfly-tool-manager/tools"),
+		LogsDir:            absPathOrDefault(*logsDir, "/hubfly-tool-manager/logs"),
 		TokenFile:          absPathOrDefault(*tokenFile, "/hubfly-tool-manager/.token"),
 		LockdownFile:       absPathOrDefault(*lockdownFile, "/hubfly-tool-manager/.lockdown.json"),
+		SessionSecretFile:  absPathOrDefault(*sessionSecretFile, "/hubfly-tool-manager/.session-secret"),
 		PM2Bin:             *pm2Bin,
 		GitBin:             *gitBin,
 		RestartOnBoot:      *restartOnBoot,
 		CommandTimeoutSecs: *timeoutSecs,
 	}
 
-	for _, dir := range []string{cfg.DataDir, cfg.BackupsDir, cfg.ToolsDir} {
+	for _, dir := range []string{cfg.DataDir, cfg.BackupsDir, cfg.ToolsDir, cfg.LogsDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			logger.Fatalf("create runtime dir %s: %v", dir, err)
 		}
@@ -65,7 +69,7 @@ func main() {
 		mgr.EnsureAllRegisteredRunning()
 	}
 
-	srv := httpapi.New(mgr, logger, cfg.TokenFile, cfg.LockdownFile)
+	srv := httpapi.New(mgr, logger, cfg.TokenFile, cfg.LockdownFile, cfg.SessionSecretFile)
 	if err := httpapi.ListenAndServe(cfg.ListenAddr, srv.Handler(), logger); err != nil {
 		logger.Fatalf("server error: %v", err)
 	}
