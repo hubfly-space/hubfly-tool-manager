@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -26,6 +27,7 @@ import (
 
 	"hubfly-tool-manager/internal/app"
 	"hubfly-tool-manager/internal/db"
+	toollogs "hubfly-tool-manager/internal/logs"
 	"hubfly-tool-manager/internal/model"
 	"hubfly-tool-manager/internal/pm2"
 )
@@ -52,6 +54,7 @@ type Manager struct {
 	cfg    model.RuntimeConfig
 	store  *db.Store
 	pm2    *pm2.Client
+	logs   *toollogs.Manager
 	runner app.CommandRunner
 	logger *log.Logger
 
@@ -63,13 +66,14 @@ func NewManager(cfg model.RuntimeConfig, store *db.Store, pm2c *pm2.Client, logg
 		cfg:    cfg,
 		store:  store,
 		pm2:    pm2c,
+		logs:   toollogs.New(cfg.LogsDir),
 		runner: app.CommandRunner{Timeout: time.Duration(cfg.CommandTimeoutSecs) * time.Second},
 		logger: logger,
 	}
 }
 
 func (m *Manager) EnsureRuntime() error {
-	for _, dir := range []string{m.cfg.DataDir, m.cfg.BackupsDir, m.cfg.ToolsDir} {
+	for _, dir := range []string{m.cfg.DataDir, m.cfg.BackupsDir, m.cfg.ToolsDir, m.cfg.LogsDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("create runtime dir %s: %w", dir, err)
 		}
@@ -87,6 +91,9 @@ func (m *Manager) EnsureAllRegisteredRunning() {
 		return
 	}
 	for _, t := range tools {
+		if _, err := m.logs.Ensure(t.Slug); err != nil {
+			m.logger.Printf("boot log init warning for %s: %v", t.Name, err)
+		}
 		status, statusErr := m.pm2.Status(t.Name)
 		if statusErr != nil {
 			m.logger.Printf("boot status check warning for %s: %v", t.Name, statusErr)
@@ -140,6 +147,10 @@ func (m *Manager) RegisterTool(req model.RegisterToolRequest) (model.ToolConfig,
 	if err := m.downloadBinary(t.DownloadURL, t.BinaryPath, t.Checksum); err != nil {
 		return model.ToolConfig{}, err
 	}
+	if _, err := m.logs.Ensure(t.Slug); err != nil {
+		return model.ToolConfig{}, err
+	}
+	_ = m.logs.AppendBoot(t.Slug, "tool registered")
 
 	if err := m.store.CreateTool(t); err != nil {
 		return model.ToolConfig{}, err
@@ -209,8 +220,113 @@ func (m *Manager) GetTool(name string) (model.ToolConfig, error) {
 	return m.mustTool(name)
 }
 
+func (m *Manager) UpdateAll() []model.BulkActionResult {
+	tools, err := m.store.ListTools()
+	if err != nil {
+		return []model.BulkActionResult{{Tool: "*", OK: false, Message: err.Error()}}
+	}
+	results := make([]model.BulkActionResult, 0, len(tools))
+	var wg sync.WaitGroup
+	var resultsMu sync.Mutex
+	for _, toolCfg := range tools {
+		toolCfg := toolCfg
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := m.Update(toolCfg.Name)
+			result := model.BulkActionResult{Tool: toolCfg.Name, OK: err == nil}
+			if err != nil {
+				result.Message = err.Error()
+			}
+			resultsMu.Lock()
+			results = append(results, result)
+			resultsMu.Unlock()
+		}()
+	}
+	wg.Wait()
+	sort.Slice(results, func(i, j int) bool { return results[i].Tool < results[j].Tool })
+	return results
+}
+
+func (m *Manager) SearchLogs(toolName, fileName, query string, limit int) ([]model.LogQueryResult, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	if strings.TrimSpace(toolName) != "" {
+		t, err := m.mustTool(toolName)
+		if err != nil {
+			return nil, err
+		}
+		return m.logs.Search(t.Name, t.Slug, fileName, query, limit)
+	}
+
+	tools, err := m.store.ListTools()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.LogQueryResult, 0, limit)
+	for _, t := range tools {
+		results, err := m.logs.Search(t.Name, t.Slug, fileName, query, limit-len(out))
+		if err != nil {
+			continue
+		}
+		out = append(out, results...)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *Manager) CleanupLogs(toolName, fileName string) error {
+	if strings.TrimSpace(toolName) == "" {
+		tools, err := m.store.ListTools()
+		if err != nil {
+			return err
+		}
+		for _, t := range tools {
+			if err := m.logs.Cleanup(t.Slug, fileName); err != nil {
+				return err
+			}
+			_ = m.logs.AppendBoot(t.Slug, "logs cleaned from manager")
+		}
+		return nil
+	}
+	t, err := m.mustTool(toolName)
+	if err != nil {
+		return err
+	}
+	if err := m.logs.Cleanup(t.Slug, fileName); err != nil {
+		return err
+	}
+	_ = m.logs.AppendBoot(t.Slug, "logs cleaned from manager")
+	return nil
+}
+
+func (m *Manager) SuggestRelease(name string) *model.ReleaseSuggestion {
+	t, err := m.mustTool(name)
+	if err != nil {
+		return &model.ReleaseSuggestion{Error: err.Error()}
+	}
+	return m.suggestReleaseForTool(t)
+}
+
 func (m *Manager) getStatusForTool(t model.ToolConfig) model.ToolRuntimeStatus {
-	status := model.ToolRuntimeStatus{Name: t.Name, Version: "unknown"}
+	_ = m.logs.Rotate(t.Slug)
+	status := model.ToolRuntimeStatus{
+		Name:           t.Name,
+		Slug:           t.Slug,
+		Version:        "unknown",
+		DownloadURL:    t.DownloadURL,
+		Checksum:       t.Checksum,
+		Args:           append([]string(nil), t.Args...),
+		VersionCommand: append([]string(nil), t.VersionCommand...),
+		CreatedAt:      t.CreatedAt,
+		DBUpdatedAt:    t.UpdatedAt,
+		ToolDir:        t.ToolDir,
+		BinaryPath:     t.BinaryPath,
+		Logs:           m.logs.Summarize(t.Slug),
+	}
 	pm2Status, err := m.pm2.Status(t.Name)
 	if err != nil {
 		status.Error = err.Error()
@@ -226,27 +342,51 @@ func (m *Manager) getStatusForTool(t model.ToolConfig) model.ToolRuntimeStatus {
 	return status
 }
 
+func (m *Manager) pm2StartOptions(t model.ToolConfig) pm2.StartOptions {
+	paths := m.logs.Paths(t.Slug)
+	return pm2.StartOptions{
+		StdoutPath: paths.Stdout,
+		StderrPath: paths.Stderr,
+	}
+}
+
+func (m *Manager) prepareToolLogs(t model.ToolConfig) error {
+	if _, err := m.logs.Ensure(t.Slug); err != nil {
+		return err
+	}
+	return m.logs.Rotate(t.Slug)
+}
+
 func (m *Manager) Start(name string) error {
 	t, err := m.mustTool(name)
 	if err != nil {
 		return err
 	}
+	if err := m.prepareToolLogs(t); err != nil {
+		return err
+	}
 	if err := m.ensureBinary(t); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "start failed: "+err.Error())
 		return err
 	}
-	if err := m.pm2.StartOrReload(t); err != nil {
+	if err := m.pm2.StartOrReload(t, m.pm2StartOptions(t)); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "start failed: "+err.Error())
 		return err
 	}
+	_ = m.logs.AppendBoot(t.Slug, "tool started")
 	return m.pm2.Save()
 }
 
 func (m *Manager) Stop(name string) error {
-	if _, err := m.mustTool(name); err != nil {
+	t, err := m.mustTool(name)
+	if err != nil {
 		return err
 	}
 	if err := m.pm2.Stop(name); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "stop failed: "+err.Error())
 		return err
 	}
+	_ = m.logs.AppendBoot(t.Slug, "tool stopped")
 	return m.pm2.Save()
 }
 
@@ -255,12 +395,18 @@ func (m *Manager) Restart(name string) error {
 	if err != nil {
 		return err
 	}
+	if err := m.prepareToolLogs(t); err != nil {
+		return err
+	}
 	if err := m.ensureBinary(t); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "restart failed: "+err.Error())
 		return err
 	}
-	if err := m.pm2.StartOrReload(t); err != nil {
+	if err := m.pm2.StartOrReload(t, m.pm2StartOptions(t)); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "restart failed: "+err.Error())
 		return err
 	}
+	_ = m.logs.AppendBoot(t.Slug, "tool restarted")
 	return m.pm2.Save()
 }
 
@@ -273,9 +419,14 @@ func (m *Manager) Provision(name string) error {
 		return err
 	}
 	if err := m.ensureBinary(t); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "provision failed: "+err.Error())
 		return err
 	}
-	if err := m.pm2.StartOrReload(t); err != nil {
+	if err := m.prepareToolLogs(t); err != nil {
+		return err
+	}
+	if err := m.pm2.StartOrReload(t, m.pm2StartOptions(t)); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "provision failed: "+err.Error())
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
@@ -283,6 +434,7 @@ func (m *Manager) Provision(name string) error {
 	}
 	version, _ := m.GetToolVersion(t)
 	_ = m.store.InsertVersion(model.VersionRecord{ToolName: t.Name, Version: versionOrUnknown(version), UpdatedAt: time.Now().UTC(), Notes: "provision"})
+	_ = m.logs.AppendBoot(t.Slug, "tool provisioned")
 	return nil
 }
 
@@ -345,17 +497,24 @@ func (m *Manager) ConfigureAndUpdate(name string, req model.ConfigureToolRequest
 
 func (m *Manager) performToolUpdateLocked(updateTool model.ToolConfig, backupSource model.ToolConfig, notePrefix string) error {
 	if err := m.ensureBinary(backupSource); err != nil {
+		_ = m.logs.AppendBoot(updateTool.Slug, notePrefix+" failed: "+err.Error())
+		return err
+	}
+	if err := m.prepareToolLogs(updateTool); err != nil {
 		return err
 	}
 
 	backupDir, err := m.backupToolFiles(backupSource)
 	if err != nil {
+		_ = m.logs.AppendBoot(updateTool.Slug, notePrefix+" backup failed: "+err.Error())
 		return err
 	}
 	if err := m.downloadBinary(updateTool.DownloadURL, updateTool.BinaryPath, updateTool.Checksum); err != nil {
+		_ = m.logs.AppendBoot(updateTool.Slug, notePrefix+" download failed: "+err.Error())
 		return err
 	}
-	if err := m.pm2.StartOrReload(updateTool); err != nil {
+	if err := m.pm2.StartOrReload(updateTool, m.pm2StartOptions(updateTool)); err != nil {
+		_ = m.logs.AppendBoot(updateTool.Slug, notePrefix+" restart failed: "+err.Error())
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
@@ -371,6 +530,7 @@ func (m *Manager) performToolUpdateLocked(updateTool model.ToolConfig, backupSou
 		UpdatedAt: time.Now().UTC(),
 		Notes:     fmt.Sprintf("%s backup=%s", notePrefix, backupDir),
 	})
+	_ = m.logs.AppendBoot(updateTool.Slug, fmt.Sprintf("%s completed with backup %s", notePrefix, backupDir))
 	return nil
 }
 
@@ -502,7 +662,11 @@ func (m *Manager) Rollback(name, backupID string) error {
 	if err := m.restoreToolFromBackup(t, selected.Path); err != nil {
 		return fmt.Errorf("restore from backup %s: %w", selected.ID, err)
 	}
-	if err := m.pm2.StartOrReload(t); err != nil {
+	if err := m.prepareToolLogs(t); err != nil {
+		return err
+	}
+	if err := m.pm2.StartOrReload(t, m.pm2StartOptions(t)); err != nil {
+		_ = m.logs.AppendBoot(t.Slug, "rollback failed: "+err.Error())
 		return err
 	}
 	if err := m.pm2.Save(); err != nil {
@@ -518,6 +682,7 @@ func (m *Manager) Rollback(name, backupID string) error {
 		UpdatedAt: time.Now().UTC(),
 		Notes:     fmt.Sprintf("rollback_from=%s safeguard=%s", selected.Path, safeguardDir),
 	})
+	_ = m.logs.AppendBoot(t.Slug, fmt.Sprintf("rollback completed from %s", selected.ID))
 	return nil
 }
 
@@ -837,9 +1002,82 @@ func (m *Manager) materializeBinary(downloadURL, downloadedPath, targetPath stri
 	}
 }
 
+var githubReleaseURLPattern = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/releases/download/([^/]+)/(.+)$`)
+
+func (m *Manager) suggestReleaseForTool(t model.ToolConfig) *model.ReleaseSuggestion {
+	matches := githubReleaseURLPattern.FindStringSubmatch(strings.TrimSpace(t.DownloadURL))
+	if len(matches) != 4 {
+		return &model.ReleaseSuggestion{
+			Supported: false,
+			Reason:    "download URL is not a GitHub release asset",
+		}
+	}
+
+	repo := matches[1]
+	currentTag := matches[2]
+	currentAsset := matches[3]
+	latest, err := m.latestRelease(repo)
+	if err != nil {
+		return &model.ReleaseSuggestion{
+			Supported:   true,
+			Repository:  repo,
+			CurrentTag:  currentTag,
+			CurrentAsset: currentAsset,
+			Error:       err.Error(),
+		}
+	}
+
+	suggestion := &model.ReleaseSuggestion{
+		Supported:    true,
+		Repository:   repo,
+		CurrentTag:   currentTag,
+		CurrentAsset: currentAsset,
+		LatestTag:    latest.TagName,
+	}
+	for _, asset := range latest.Assets {
+		if asset.Name == currentAsset {
+			suggestion.LatestAsset = asset.Name
+			suggestion.SuggestedDownloadURL = asset.BrowserDownloadURL
+			break
+		}
+	}
+	if suggestion.SuggestedDownloadURL == "" && len(latest.Assets) > 0 {
+		suggestion.LatestAsset = latest.Assets[0].Name
+		suggestion.SuggestedDownloadURL = latest.Assets[0].BrowserDownloadURL
+	}
+	if latest.TagName != currentTag {
+		suggestion.UpdateAvailable = true
+		suggestion.Reason = "latest GitHub release differs from the configured asset tag"
+	}
+	if suggestion.SuggestedDownloadURL == "" {
+		suggestion.Reason = "latest release does not contain a matching asset; review manually"
+	}
+	return suggestion
+}
+
 func (m *Manager) latestReleaseTag(repo string) (string, error) {
+	latest, err := m.latestRelease(repo)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(latest.TagName) == "" {
+		return "", errors.New("latest release tag is empty")
+	}
+	return strings.TrimSpace(latest.TagName), nil
+}
+
+type githubRelease struct {
+	TagName string `json:"tag_name"`
+	Assets  []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+	} `json:"assets"`
+}
+
+func (m *Manager) latestRelease(repo string) (githubRelease, error) {
 	u := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
 	var lastErr error
+	var release githubRelease
 	for attempt := 1; attempt <= httpRetryAttempts; attempt++ {
 		resp, err := outboundHTTPClient.Get(u) // #nosec G107
 		if err != nil {
@@ -860,10 +1098,7 @@ func (m *Manager) latestReleaseTag(repo string) (string, error) {
 			break
 		}
 
-		var payload struct {
-			TagName string `json:"tag_name"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 			_ = resp.Body.Close()
 			lastErr = fmt.Errorf("decode latest release: %w", err)
 			if attempt < httpRetryAttempts {
@@ -873,16 +1108,13 @@ func (m *Manager) latestReleaseTag(repo string) (string, error) {
 			break
 		}
 		_ = resp.Body.Close()
-		if strings.TrimSpace(payload.TagName) == "" {
-			return "", errors.New("latest release tag is empty")
-		}
-		return strings.TrimSpace(payload.TagName), nil
+		return release, nil
 	}
 
 	if lastErr == nil {
 		lastErr = errors.New("fetch latest release failed")
 	}
-	return "", lastErr
+	return release, lastErr
 }
 
 func releaseArch(goarch string) (string, error) {
