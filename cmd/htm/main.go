@@ -337,7 +337,7 @@ func initToken(args []string) error {
 	if len(args) > 0 {
 		token = strings.TrimSpace(args[0])
 	} else {
-		fmt.Print("Enter token: ")
+		fmt.Print("Enter token Path or token: ")
 		if _, err := fmt.Scanln(&token); err != nil {
 			return fmt.Errorf("read token: %w", err)
 		}
