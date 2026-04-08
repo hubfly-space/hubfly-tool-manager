@@ -1832,10 +1832,7 @@
                     init.headers["X-CSRF-Token"] = state.csrfToken;
                 if (init.body && !init.headers["Content-Type"])
                     init.headers["Content-Type"] = "application/json";
-                const res = await fetch(
-                    "https://htm-rw1.hubfly.space" + path,
-                    init,
-                );
+                const res = await fetch(path, init);
                 const text = await res.text();
                 const payload = text ? JSON.parse(text) : {};
                 if (!res.ok)
