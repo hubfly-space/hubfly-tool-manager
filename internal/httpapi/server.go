@@ -21,15 +21,15 @@ import (
 )
 
 type Server struct {
-	manager      *tool.Manager
-	logger       *log.Logger
-	mux          *http.ServeMux
-	tokenFile    string
-	lockdownFile string
-	authMu       sync.Mutex
-	sessionsMu   sync.Mutex
+	manager       *tool.Manager
+	logger        *log.Logger
+	mux           *http.ServeMux
+	tokenFile     string
+	lockdownFile  string
+	authMu        sync.Mutex
+	sessionsMu    sync.Mutex
 	sessionSecret []byte
-	sessions     map[string]authSession
+	sessions      map[string]authSession
 }
 
 func New(manager *tool.Manager, logger *log.Logger, tokenFile, lockdownFile, sessionSecretFile string) *Server {
@@ -329,8 +329,14 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "tool": toolCfg})
 }
 
-func (s *Server) handleListTools(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"tools": s.manager.ListStatus()})
+func (s *Server) handleListTools(w http.ResponseWriter, r *http.Request) {
+	tools := s.manager.ListStatus()
+	for _, extra := range r.URL.Query()["extra"] {
+		if status, ok := s.manager.ExtraStatus(extra); ok {
+			tools = append(tools, status)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tools": tools})
 }
 
 func (s *Server) handleUpdateAll(w http.ResponseWriter, _ *http.Request) {

@@ -208,6 +208,15 @@ func (m *Manager) ListStatus() []model.ToolRuntimeStatus {
 	return out
 }
 
+func (m *Manager) ExtraStatus(extra string) (model.ToolRuntimeStatus, bool) {
+	switch strings.TrimSpace(strings.ToLower(extra)) {
+	case "docker-engine":
+		return m.dockerEngineStatus(), true
+	default:
+		return model.ToolRuntimeStatus{}, false
+	}
+}
+
 func (m *Manager) GetStatus(name string) model.ToolRuntimeStatus {
 	t, err := m.mustTool(name)
 	if err != nil {
@@ -246,6 +255,37 @@ func (m *Manager) UpdateAll() []model.BulkActionResult {
 	wg.Wait()
 	sort.Slice(results, func(i, j int) bool { return results[i].Tool < results[j].Tool })
 	return results
+}
+
+func (m *Manager) dockerEngineStatus() model.ToolRuntimeStatus {
+	status := model.ToolRuntimeStatus{
+		Name:      "docker-engine",
+		Slug:      "docker-engine",
+		PM2Status: "unknown",
+		Version:   "unknown",
+	}
+
+	versionRes, err := m.runner.Run("docker", "version", "--format", "{{.Server.Version}}")
+	if err != nil {
+		status.Error = fmt.Sprintf("docker unavailable: %v", err)
+		status.PM2Status = "errored"
+		return status
+	}
+	if v := firstLine(versionRes.Stdout); strings.TrimSpace(v) != "" && v != "unknown" {
+		status.Version = v
+	}
+
+	infoRes, err := m.runner.Run("docker", "info", "--format", "{{.ServerVersion}}")
+	if err != nil {
+		status.Error = fmt.Sprintf("docker daemon not running: %v", err)
+		status.PM2Status = "stopped"
+		return status
+	}
+	if v := firstLine(infoRes.Stdout); strings.TrimSpace(v) != "" && v != "unknown" {
+		status.Version = v
+	}
+	status.PM2Status = "online"
+	return status
 }
 
 func (m *Manager) SearchLogs(toolName, fileName, query string, limit int) ([]model.LogQueryResult, error) {

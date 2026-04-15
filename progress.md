@@ -60,3 +60,5 @@
 - Improved reboot behavior:
   - boot reconciliation is now enabled by default
   - startup checks registered tools and only starts those that are not already healthy in PM2
+- Added runtime extra status support for Docker Engine:
+  - `GET /tools?extra=docker-engine` appends a live system health/version entry without storing anything in SQLite
