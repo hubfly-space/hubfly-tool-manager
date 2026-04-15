@@ -94,6 +94,10 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if r.Method == http.MethodGet && r.URL.Path == "/tools" && !s.requestHasCredentials(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		state, err := s.loadLockdownState()
 		if err != nil {
@@ -260,6 +264,26 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
+func (s *Server) requestHasCredentials(r *http.Request) bool {
+	if strings.TrimSpace(extractToken(r)) != "" {
+		return true
+	}
+	_, sess := s.sessionFromRequest(r)
+	return sess != nil
+}
+
+func (s *Server) requestAuthenticated(r *http.Request) bool {
+	if got := strings.TrimSpace(extractToken(r)); got != "" {
+		expected, err := s.loadToken()
+		if err != nil {
+			return false
+		}
+		return subtleCompare(got, expected)
+	}
+	_, sess := s.sessionFromRequest(r)
+	return sess != nil
+}
+
 func (s *Server) authorizeBearerToken(w http.ResponseWriter, r *http.Request) bool {
 	got := strings.TrimSpace(extractToken(r))
 	if got == "" {
@@ -336,7 +360,31 @@ func (s *Server) handleListTools(w http.ResponseWriter, r *http.Request) {
 			tools = append(tools, status)
 		}
 	}
+	if !s.requestAuthenticated(r) {
+		publicTools := make([]model.PublicToolStatus, 0, len(tools))
+		for _, toolStatus := range tools {
+			slug := strings.TrimSpace(toolStatus.Slug)
+			if slug == "" {
+				slug = slugifyPublicTool(toolStatus.Name)
+			}
+			publicTools = append(publicTools, model.PublicToolStatus{
+				Slug:   slug,
+				Status: toolStatus.PM2Status,
+			})
+		}
+		writeJSON(w, http.StatusOK, publicTools)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"tools": tools})
+}
+
+func slugifyPublicTool(name string) string {
+	out := strings.TrimSpace(strings.ToLower(name))
+	out = strings.ReplaceAll(out, " ", "-")
+	if out == "" {
+		return "unknown"
+	}
+	return out
 }
 
 func (s *Server) handleUpdateAll(w http.ResponseWriter, _ *http.Request) {

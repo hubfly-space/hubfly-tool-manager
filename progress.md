@@ -62,3 +62,6 @@
   - startup checks registered tools and only starts those that are not already healthy in PM2
 - Added runtime extra status support for Docker Engine:
   - `GET /tools?extra=docker-engine` appends a live system health/version entry without storing anything in SQLite
+- Added public read-only tools listing:
+  - unauthenticated `GET /tools` now returns a reduced array of `slug` and `status` only
+  - authenticated callers still receive the full detailed tools payload

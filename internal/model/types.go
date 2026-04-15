@@ -64,6 +64,11 @@ type ToolRuntimeStatus struct {
 	Release        *ReleaseSuggestion `json:"release,omitempty"`
 }
 
+type PublicToolStatus struct {
+	Slug   string `json:"slug"`
+	Status string `json:"status"`
+}
+
 type ToolLogSummary struct {
 	Dir         string    `json:"dir,omitempty"`
 	BootLogPath string    `json:"boot_log_path,omitempty"`
